@@ -9,8 +9,8 @@ Personal use only: it's installed as a sideloaded APK and is not on Google Play.
 | Milestone | What | State |
 |---|---|---|
 | M1 | Skeleton & build pipeline | ✅ Done |
-| M2 | Settings & persona | ⏳ Next |
-| M3 | Accessibility service + bubble | — |
+| M2 | Settings & persona | ✅ Done |
+| M3 | Accessibility service + bubble | ⏳ Next |
 | M4 | Debug screen & node dump | — |
 | M5 | Chat readers | — |
 | M6 | Gemini + prompt | — |
@@ -26,6 +26,19 @@ Personal use only: it's installed as a sideloaded APK and is not on Google Play.
 - A fixed debug signing key, so new builds install over old ones.
 
 **Test M1 on the phone:** install the APK (see below), open ReplyMate, and switch between the three tabs. Then switch the phone to dark mode; the app should follow.
+
+### What M2 contains
+- **Settings storage** ([SettingsRepository.kt](app/src/main/java/com/replymate/data/SettingsRepository.kt)): saved in app-private Preferences DataStore and excluded from backups.
+- **Persona tab:** name, about me (500 characters max), writing style, example messages (one per line, max 40), things to avoid, reply language, Gemini API key (hidden unless you tap Show), Model ID (default `gemini-3.5-flash-lite`, with Reset), and a "Share first name with AI" switch (off by default). Changes save automatically; the top-right corner shows "Saving…" then "Saved".
+- **Setup tab checklist:** API key, persona (your name plus at least 5 example messages), and the accessibility service. Each item gets a green tick when it's done, and the service status is re-checked whenever you come back to the app. On Android 13+ it also explains how to "Allow restricted settings".
+- The Persona **Test** button arrives in M6, together with the Gemini connection.
+
+**Test M2 on the phone:**
+1. Open **Setup**. It should say "0 of 3 done".
+2. Tap **Add API key**, which takes you to Persona. Paste any text as the key for now (it isn't checked until M6), fill in your name and add 5+ example messages.
+3. Go back to **Setup**: items 1 and 2 should now have green ticks.
+4. Fully close ReplyMate (swipe it away from recent apps) and reopen it. Everything should still be filled in.
+5. Tap **Enable service**. The Accessibility settings page should open. ReplyMate **won't be in the list yet**, because the service itself is added in M3, so item 3 stays unticked for now.
 
 ## Building
 

@@ -23,6 +23,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import com.replymate.ui.DebugScreen
 import com.replymate.ui.PersonaScreen
 import com.replymate.ui.SetupScreen
@@ -46,6 +47,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun ReplyMateApp() {
+    val app = LocalContext.current.applicationContext as ReplyMateApplication
     var selected by rememberSaveable { mutableStateOf(Tab.SETUP) }
 
     Scaffold(
@@ -64,8 +66,8 @@ private fun ReplyMateApp() {
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when (selected) {
-                Tab.SETUP -> SetupScreen()
-                Tab.PERSONA -> PersonaScreen()
+                Tab.SETUP -> SetupScreen(app.settings, onOpenPersona = { selected = Tab.PERSONA })
+                Tab.PERSONA -> PersonaScreen(app.settings, app.appScope)
                 Tab.DEBUG -> DebugScreen()
             }
         }
