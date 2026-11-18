@@ -1,0 +1,85 @@
+ReplyMate 0.1.0 node dump
+# Layout and positions from a real Messenger chat (Pixel 6, Android 17, Nov 2026).
+# Names and message text replaced with made-up ones.
+package=com.facebook.orca  screen=1080x2400
+
+FrameLayout [0,0][1080,2400]
+  FrameLayout id=(name removed) [0,128][1080,2331] clickable
+    ViewGroup id=(name removed) [0,128][1080,289] clickable
+      Button desc="Back" [12,140][150,278] clickable
+      Button desc="Gina Test Banda, Thread details" [162,140][654,278] clickable
+        View [162,157][266,261]
+          View [162,157][266,261]
+        ViewGroup text="Gina Test Banda" desc="Gina Test Banda" [301,155][654,217]
+        ViewGroup [301,217][654,264]
+          ViewGroup text="Active 26 minutes ago" desc="Active 26 minutes ago" [301,217][650,264]
+      ViewGroup [654,140][792,278]
+        Button desc="Audio call" [654,140][792,278] clickable
+      ViewGroup [792,140][930,278]
+        Button desc="Video call" [792,140][930,278] clickable
+      Button desc="Thread details" [930,140][1068,278] clickable
+    ViewGroup id=(name removed) [0,289][1080,2158]
+      ViewGroup [0,289][1080,289]
+      ViewGroup id=(name removed) [0,289][1080,2158]
+      ViewGroup id=(name removed) [0,289][1080,2158]
+        ViewGroup [0,289][1080,2158]
+          View [0,289][1080,2158]
+            ViewGroup [0,289][1080,850]
+              ViewGroup text="TUE AT 8:34 PM" desc="TUE AT 8:34 PM" [413,300][667,347]
+              ViewGroup [0,376][1080,850]
+                ViewGroup [625,376][1057,434]
+                  ViewGroup text="You replied to Gina" desc="You replied to Gina" [706,376][1022,422]
+                ViewGroup [333,534][1057,850]
+                  ViewGroup [333,534][1057,850] clickable
+                    ViewGroup text="Sam, Since first year, we wrote Java from scratch 😂 calculators and to-do lists, double tap to see sent/receive date and time, double tap and hold to react on message" [333,534][1057,850]
+                ViewGroup [692,434][1057,586] clickable
+                  ViewGroup text="Gina, When did you start?" desc="Gina, When did you start?" [692,434][1057,586]
+            ViewGroup [0,856][1080,1010]
+              ViewGroup [0,856][1080,1010]
+                ViewGroup [411,856][1057,1010]
+                  ViewGroup [411,856][1057,1010] clickable
+                    ViewGroup text="Sam, Back then it was more fun honestly, double tap to see sent/receive date and time, double tap and hold to react on message" [411,856][1057,1010]
+            ViewGroup [0,1016][1080,1339]
+              ViewGroup text="TUE AT 9:17 PM" desc="TUE AT 9:17 PM" [413,1051][667,1098]
+              ViewGroup [0,1127][1080,1339]
+                ImageView desc="Open Gina Test Banda's profile" [35,1200][116,1281] clickable
+                  View [35,1200][116,1281]
+                ViewGroup [151,1127][806,1339]
+                  ViewGroup [151,1127][806,1281] clickable
+                    ViewGroup text="Gina, Writing code on paper in exams 😭, double tap to see sent/receive date and time, double tap and hold to react on message" [151,1127][806,1281]
+                Button desc="one reaction" [714,1264][806,1330] clickable
+            ViewGroup [0,1345][1080,1530]
+              ViewGroup [0,1345][1080,1530]
+                ViewGroup [316,1380][1057,1530]
+                  ViewGroup [316,1380][1057,1530] clickable
+                    ViewGroup text="Sam, Looking back that was diabolical 💀😂, double tap to see sent/receive date and time, double tap and hold to react on message" [316,1380][1057,1530]
+            ViewGroup [0,1536][1080,1803]
+              ViewGroup text="6:23 AM" desc="6:23 AM" [474,1571][605,1618]
+              ViewGroup [0,1647][1080,1803]
+                ImageView desc="Open Gina Test Banda's profile" [35,1670][116,1751] clickable
+                  View [35,1670][116,1751]
+                ViewGroup [151,1647][448,1751]
+                  ViewGroup [151,1647][448,1751] clickable
+                    ViewGroup text="Gina, No for real!, double tap to see sent/receive date and time, double tap and hold to react on message" [151,1647][448,1751]
+                ImageView desc="Seen by Gina Test Banda" [976,1757][1022,1803]
+            ViewGroup [0,1809][1080,2133]
+              ViewGroup text="7:38 AM" desc="7:38 AM" [474,1844][605,1891]
+              ViewGroup [0,1920][1080,2133]
+                ViewGroup [419,1920][1057,2074]
+                  ViewGroup [419,1920][1057,2074] clickable
+                    ViewGroup text="Sam, Good morning, nice weather today, double tap to see sent/receive date and time, double tap and hold to react on message" [419,1920][1057,2074]
+                ViewGroup [472,2074][1057,2133]
+                  ViewGroup text="Delivered 12 hours ago" desc="Delivered 12 hours ago" [656,2086][1022,2133]
+            ViewGroup [0,2139][1080,2151]
+            ViewGroup [0,2157][1080,2158]
+        ViewGroup [0,1824][1080,2158]
+    ViewGroup id=(name removed) [0,2158][1080,2331]
+      Button desc="Show more options." [0,2159][116,2331] clickable
+      Button desc="Open camera." [116,2159][232,2331] clickable
+      Button desc="Open photo gallery." [232,2159][348,2331] clickable
+      Button desc="Open audio recorder." [348,2159][464,2331] clickable
+      ViewGroup [464,2184][953,2305]
+        EditText text="Message" desc="Type a message" [464,2184][849,2305] EDITABLE clickable
+        Button desc="Open sticker, emoji and GIF keyboard." [849,2192][953,2296] clickable
+      ViewGroup [953,2159][1080,2331]
+        Button desc="Send 👍" [953,2159][1080,2331] clickable

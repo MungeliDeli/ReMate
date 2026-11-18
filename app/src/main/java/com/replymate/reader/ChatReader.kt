@@ -11,21 +11,28 @@ interface ChatReader {
 /** Rules shared by both readers (spec F3 "General rules"). */
 object ReaderRules {
 
-    /** A visible piece of text plus where it sits on screen. */
-    data class Candidate(val text: String, val bounds: Box)
+    /**
+     * A visible piece of text plus where it sits on screen. [sender] is set when
+     * the reader knows better than position (e.g. WhatsApp delivery ticks).
+     */
+    data class Candidate(val text: String, val bounds: Box, val sender: Sender? = null)
 
     /**
      * Sorts top-to-bottom, drops non-message noise, assigns senders by position,
      * keeps the newest [Config.MAX_MESSAGES], trims each to [Config.MAX_MESSAGE_CHARS].
      */
-    fun toMessages(candidates: List<Candidate>, screenWidth: Int): List<ChatMessage> =
+    fun toMessages(
+        candidates: List<Candidate>,
+        screenWidth: Int,
+        skipCenteredChips: Boolean = true,
+    ): List<ChatMessage> =
         candidates
             .asSequence()
             .map { it.copy(text = it.text.trim()) }
             .filter { it.text.isNotEmpty() && !TextFilters.isNoise(it.text) }
-            .filter { !isCenteredChip(it.bounds, screenWidth) }
+            .filter { !skipCenteredChips || !isCenteredChip(it.bounds, screenWidth) }
             .sortedWith(compareBy({ it.bounds.top }, { it.bounds.left }))
-            .map { ChatMessage(senderFor(it.bounds, screenWidth), trimText(it.text)) }
+            .map { ChatMessage(it.sender ?: senderFor(it.bounds, screenWidth), trimText(it.text)) }
             .toList()
             .takeLast(Config.MAX_MESSAGES)
 

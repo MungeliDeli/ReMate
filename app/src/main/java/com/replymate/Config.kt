@@ -50,6 +50,8 @@ object Config {
     const val TOOLBAR_HEIGHT_RATIO = 0.12f
     const val WHATSAPP_MESSAGE_TEXT_ID = "message_text"
     const val WHATSAPP_CONTACT_NAME_ID = "conversation_contact_name"
+    /** Delivery-ticks image; WhatsApp only shows it on the owner's own messages. */
+    const val WHATSAPP_STATUS_ID = "status"
 
     // --- Bubble (spec F4 / section 7) ---
     const val BUBBLE_SIZE_DP = 52

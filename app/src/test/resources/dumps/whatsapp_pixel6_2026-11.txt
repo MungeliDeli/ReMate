@@ -1,0 +1,66 @@
+ReplyMate 0.1.0 node dump
+# Layout and positions from a real WhatsApp chat (Pixel 6, Android 17, Nov 2026).
+# Names and message text replaced with made-up ones.
+package=com.whatsapp  screen=1080x2400
+
+FrameLayout [0,0][1080,2400]
+  Button id=whatsapp_toolbar_home desc="Back" [0,139][138,277] clickable
+  FrameLayout id=contact_photo_view [138,139][276,277] clickable
+    Button id=conversation_contact_photo [146,152][258,264]
+  LinearLayout id=conversation_contact [276,128][827,289] clickable
+    TextView id=conversation_contact_name text="Alice" [288,149][451,215]
+    TextView id=conversation_contact_status text="Business Account" [288,215][576,262]
+  ImageButton desc="Call" [827,139][965,277] clickable
+  ImageView id=menuitem_overflow desc="More options" [965,139][1080,277] clickable
+  ViewGroup id=coordinator [0,289][1080,2331]
+    View id=drag_n_drop_overlay [0,289][1080,2331]
+    ListView id=list [0,289][1080,2171] scrollable
+      ViewGroup id=conversation_row_text [0,289][1080,319]
+        TextView id=message_text text="stuck in traffic, give me 10" [54,289][634,252]
+        TextView id=edit_label text="Edited" [372,289][486,299]
+        TextView id=date text="6:27 AM" [486,289][617,299]
+      ViewGroup id=conversation_row_text [0,319][1080,568]
+        TextView id=message_text text="I was going to say hurry 😂 but there's nothing you can do" [169,338][1020,498]
+        TextView id=date text="6:29 AM" [817,498][948,545]
+        ImageView id=status desc="Delivered" [948,504][1006,539]
+      ViewGroup id=conversation_row_text [0,568][1080,713]
+        TextView id=message_text text="No wait for me 😭😭" [54,587][547,693]
+        TextView id=date text="6:29 AM" [564,646][695,693]
+      ViewGroup id=conversation_row_sticker [0,713][1080,1173] clickable
+        ImageView id=sticker_image desc="Received sticker. Double tap to view" [54,731][413,1090]
+        TextView id=date text="6:30 AM" [260,1103][391,1150]
+        LinearLayout [442,897][535,989]
+          Button id=action_button desc="Forward Sticker" [442,897][535,989] clickable
+      ViewGroup id=conversation_row_text [0,1173][1080,1489]
+        FrameLayout id=bubble_quoted_message_frame [231,1199][1020,1337] clickable
+          TextView id=quoted_title text="Alice" desc="Alice" [266,1213][401,1269]
+          TextView id=quoted_text text="No wait for me 😭😭" [266,1269][632,1323]
+        TextView id=message_text text="I'm here and waiting, it's up to the driver now" [225,1337][1020,1419]
+        TextView id=date text="6:30 AM" [817,1419][948,1466]
+        ImageView id=status desc="Delivered" [948,1425][1006,1460]
+      ViewGroup id=conversation_row_text [0,1489][1080,1610]
+        TextView id=message_text text="Not yet there?" [54,1508][383,1590]
+        TextView id=date text="6:30 AM" [400,1543][531,1590]
+      ViewGroup id=conversation_row_text [0,1610][1080,1720]
+        TextView id=message_text text="Not yet" [625,1629][817,1711]
+        TextView id=date text="6:31 AM" [817,1661][948,1708]
+        ImageView id=status desc="Delivered" [948,1667][1006,1702]
+      ViewGroup id=conversation_row_text [0,1720][1080,1830]
+        TextView id=message_text text="I'll call when she arrives" [312,1728][817,1810]
+        TextView id=date text="6:31 AM" [817,1760][948,1807]
+        ImageView id=status desc="Delivered" [948,1766][1006,1801]
+      ViewGroup id=conversation_row_text [0,1830][1080,1940]
+        TextView id=message_text text="Alright" [54,1849][234,1931]
+        TextView id=date text="6:31 AM" [251,1884][382,1931]
+      ViewGroup id=conversation_row_text [0,1940][1080,2050]
+        TextView id=message_text text="Made it" [54,1948][252,2030]
+        TextView id=date text="6:36 AM" [269,1983][400,2030]
+      ViewGroup id=conversation_row_text [0,2050][1080,2171]
+        TextView id=message_text text="She's here" [565,2069][817,2151]
+        TextView id=date text="6:36 AM" [817,2101][948,2148]
+        ImageView id=status desc="Delivered" [948,2107][1006,2142]
+    ImageButton id=emoji_picker_btn desc="Emoji, GIFs and stickers" [23,2180][161,2318] clickable
+    EditText id=entry text="Message" [161,2202][615,2296] EDITABLE clickable
+    ImageButton id=input_attach_button desc="Attach" [615,2180][754,2318] clickable
+    ImageButton id=camera_btn desc="Camera" [754,2180][892,2318] clickable
+    ImageButton id=voice_note_btn desc="Voice message, Button. Double tap and hold to record, slide …" [916,2178][1054,2316]

@@ -90,6 +90,18 @@ Personal use only: it's installed as a sideloaded APK and is not on Google Play.
 - **If nothing can be read**, ReplyMate shows "Couldn't read this chat" and saves a node dump of the screen automatically (spec section 12).
 - **Tests** run the readers on sample screens in [src/test/resources/dumps](app/src/test/resources/dumps). Dumps shared from the phone can be dropped in as new test cases.
 
+#### M5 tuning, round 1 (from real dumps, Pixel 6 / Android 17)
+- **WhatsApp:**
+  - A message counts as **yours when its row shows delivery ticks** (`status`); otherwise position decides.
+  - The "centred date chip" check is no longer used on `message_text` rows. WhatsApp puts the time to the right of your text, so medium-length messages of yours looked centred and were dropped.
+  - Quoted messages, the "Edited" label and stickers are ignored.
+- **Messenger:**
+  - Each real message reads `Name, message, double tap to see sent/receive date and time, double tap and hold to react on message`. When this format is on screen, only text in it is kept: the name and the "double tap…" ending are removed, and the name decides the sender (the contact's first name means THEM, anything else is ME).
+  - That rule also drops quoted messages, "You replied to …" headers, time chips and "Delivered … ago" labels.
+  - Older formats fall back to position.
+- **New filters:** "Delivered/Seen/Sent … ago / by …", reply headers, and the new "secured with end-to-end encryption" notice.
+- **Privacy:** test samples taken from real dumps keep only the layout. Names and message text are replaced, because this repository is public. **Never commit a raw dump.**
+
 **Test M5 on the phone:**
 1. Install the new APK and open a 1-to-1 **WhatsApp** chat with 10+ messages from both of you on screen.
 2. **Tap the bubble.** A message says "Read N messages (X from you, Y from them)".

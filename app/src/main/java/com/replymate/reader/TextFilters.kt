@@ -19,6 +19,13 @@ object TextFilters {
         RegexOption.IGNORE_CASE,
     )
     private val unreadBanner = Regex("""^\d+\s+unread\s+messages?$""", RegexOption.IGNORE_CASE)
+    // "Delivered 12 hours ago", "Seen by Grace", "Sent 5m ago", "Seen at 9:41"
+    private val receipt = Regex("""^(delivered|sent|seen)(\s+(by|at)\s+.+|\s+\d+\s*\w+\s+ago)$""", RegexOption.IGNORE_CASE)
+    // Messenger reply headers: "You replied to Grace", "Grace replied to you", "Grace replied to herself"
+    private val replyHeader = Regex(
+        """^(you replied to [\p{L}\p{M}'.\- ]{1,40}|[\p{L}\p{M}'.\- ]{1,40} replied to (you|yourself|themselves|himself|herself))$""",
+        RegexOption.IGNORE_CASE,
+    )
 
     private val exactNoise = setOf(
         "seen", "delivered", "sent", "sending", "sending…", "sending...", "read", "edited",
@@ -28,6 +35,7 @@ object TextFilters {
 
     private val noisePrefixes = listOf(
         "messages and calls are end-to-end encrypted",
+        "messages and calls are secured with end-to-end encryption",
         "messages are end-to-end encrypted",
         "this chat is with a business account",
         "you created group", "you joined using",
@@ -47,6 +55,8 @@ object TextFilters {
             numericDate.matches(s) ||
             wordDate.matches(s) ||
             dayLabel.matches(s) ||
-            unreadBanner.matches(s)
+            unreadBanner.matches(s) ||
+            receipt.matches(s) ||
+            replyHeader.matches(s)
     }
 }
