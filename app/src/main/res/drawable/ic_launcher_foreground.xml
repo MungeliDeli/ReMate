@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 108dp adaptive canvas; artwork kept inside the central 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- chat bubble -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,34h36a6,6 0,0 1,6 6v22a6,6 0,0 1,-6 6H50l-10,9v-9h-4a6,6 0,0 1,-6 -6V40a6,6 0,0 1,6 -6z" />
+    <!-- sparkle -->
+    <path
+        android:fillColor="@color/brand_primary"
+        android:pathData="M54,40l2.6,7.4L64,50l-7.4,2.6L54,60l-2.6,-7.4L44,50l7.4,-2.6z" />
+</vector>
