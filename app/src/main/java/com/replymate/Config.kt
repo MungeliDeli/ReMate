@@ -33,6 +33,24 @@ object Config {
     /** Safety cap on how many nodes one tree walk may visit. */
     const val MAX_NODES_SCAN = 3000
 
+    // --- Chat reading (spec F3) ---
+    const val MAX_MESSAGES = 15
+    const val MAX_MESSAGE_CHARS = 500
+    /**
+     * A message whose horizontal centre is at or right of this fraction of the
+     * screen width is from ME. The spec suggests 0.45; 0.5 is used because long
+     * incoming messages can stretch past 45% and be mislabelled. Tune with dumps.
+     */
+    const val SENDER_SPLIT_RATIO = 0.5f
+    /** Text centred with at least this gap on both sides is a date/system chip, not a message. */
+    const val CENTERED_CHIP_MIN_GAP_RATIO = 0.15f
+    /** How close the two side gaps must be to count as "centred". */
+    const val CENTERED_CHIP_TOLERANCE_RATIO = 0.08f
+    /** Chat title is looked for in the top 12% of the screen. */
+    const val TOOLBAR_HEIGHT_RATIO = 0.12f
+    const val WHATSAPP_MESSAGE_TEXT_ID = "message_text"
+    const val WHATSAPP_CONTACT_NAME_ID = "conversation_contact_name"
+
     // --- Bubble (spec F4 / section 7) ---
     const val BUBBLE_SIZE_DP = 52
     /** Extra transparent space around the bubble so its shadow isn't clipped. */

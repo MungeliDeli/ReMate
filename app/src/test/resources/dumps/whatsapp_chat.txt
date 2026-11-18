@@ -1,0 +1,32 @@
+ReplyMate 0.1.0 node dump
+package=com.whatsapp  screen=1080x2400  android=15 (API 35)  device=Synthetic fixture
+chatDetected=WHATSAPP  nodes=0
+
+FrameLayout [0,0][1080,2400]
+  LinearLayout id=toolbar [0,80][1080,240]
+    ImageButton desc="Navigate up" [0,100][120,220] clickable
+    TextView id=conversation_contact_name text="Chanda Mulenga" [200,100][700,160] clickable
+    TextView id=conversation_contact_status text="online" [200,160][420,200]
+    ImageButton desc="Video call" [760,100][880,220] clickable
+  ListView id=list [0,240][1080,2150] scrollable
+    TextView id=conversation_row_date_divider text="TODAY" [450,260][630,320]
+    TextView id=e2e_notice text="Messages and calls are end-to-end encrypted. Only people in this c…" [120,340][960,460]
+    LinearLayout id=main_layout [0,480][1080,620]
+      TextView id=message_text text="hey are you coming tonight?" [60,500][620,570]
+      TextView id=date text="18:01" [540,575][620,605]
+    LinearLayout id=main_layout [0,640][1080,780]
+      TextView id=message_text text="which place again" [640,660][1000,730]
+      TextView id=date text="18:03" [880,735][960,765]
+      ImageView id=status desc="Read" [970,735][1010,765]
+    LinearLayout id=main_layout [0,800][1080,1000]
+      TextView id=message_text text="the usual spot at 7, bring the speaker and call 0971234567 when you're close lol" [60,820][880,960]
+      TextView id=date text="18:04" [800,965][880,995]
+    TextView id=unread_divider_tv text="2 UNREAD MESSAGES" [330,1020][750,1080]
+    LinearLayout id=main_layout [0,1100][1080,1300]
+      TextView id=message_text text="sharp sharp, I'll be there by 7 and I'll bring the speaker no stress at all" [180,1120][1000,1260]
+      TextView id=date text="18:05" [880,1265][960,1295]
+    LinearLayout id=main_layout [0,1320][1080,1440]
+      TextView id=message_text text="nice 🔥" [60,1340][300,1410]
+  LinearLayout id=input_layout [0,2160][1080,2320]
+    EditText id=entry text="Message" [120,2200][880,2300] EDITABLE clickable
+    ImageButton id=send desc="Voice message" [920,2190][1060,2310] clickable

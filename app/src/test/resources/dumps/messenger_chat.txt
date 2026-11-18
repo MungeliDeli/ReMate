@@ -1,0 +1,29 @@
+ReplyMate 0.1.0 node dump
+package=com.facebook.orca  screen=1080x2400  android=15 (API 35)  device=Synthetic fixture
+
+FrameLayout [0,0][1080,2400]
+  ViewGroup [0,80][1080,250]
+    Button desc="Back" [0,110][120,230] clickable
+    ViewGroup [140,100][760,230] clickable
+      TextView text="Mwila Banda" [260,110][700,170]
+      TextView text="Active now" [260,170][520,215]
+    Button desc="Start a voice call" [780,110][900,230] clickable
+  RecyclerView [0,250][1080,2140] scrollable
+    TextView text="Today 9:41 PM" [400,270][680,320]
+    ViewGroup [0,340][1080,460]
+      ImageView desc="Mwila Banda" [20,380][100,460]
+      ViewGroup desc="Mwila Banda, hi! did you finish the assignment?" [120,350][700,450] clickable
+        TextView text="hi! did you finish the assignment?" [150,365][680,435]
+    ViewGroup [0,480][1080,600]
+      ViewGroup [560,490][1040,590] clickable
+        TextView text="almost done, sending it tonight" [590,505][1010,575]
+    ViewGroup [0,620][1080,740]
+      ViewGroup [120,630][560,730] clickable
+        TextView text="ok cool thanks 🙏" [150,645][530,715]
+      Button desc="React" [580,650][660,710] clickable
+    ViewGroup [0,760][1080,860]
+      ViewGroup desc="no problem" [720,770][1040,850] clickable
+    TextView text="Seen" [940,870][1040,910]
+  ViewGroup [0,2150][1080,2380]
+    EditText text="Aa" [200,2190][860,2310] EDITABLE clickable
+    Button desc="Send a like" [900,2190][1040,2310] clickable

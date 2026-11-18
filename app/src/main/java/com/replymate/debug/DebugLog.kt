@@ -1,5 +1,6 @@
 package com.replymate.debug
 
+import com.replymate.reader.Conversation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +22,8 @@ data class DebugEntry(
     val type: DebugType,
     val title: String,
     val body: String,
+    /** Set on CONVERSATION entries so the Debug tab can draw ME/THEM bubbles. */
+    val conversation: Conversation? = null,
 )
 
 /**
@@ -36,8 +39,14 @@ object DebugLog {
     /** Newest first. */
     val entries: StateFlow<List<DebugEntry>> = _entries.asStateFlow()
 
-    fun add(type: DebugType, title: String, body: String = "", now: Long = System.currentTimeMillis()) {
-        val entry = DebugEntry(nextId.getAndIncrement(), now, type, title, body)
+    fun add(
+        type: DebugType,
+        title: String,
+        body: String = "",
+        conversation: Conversation? = null,
+        now: Long = System.currentTimeMillis(),
+    ) {
+        val entry = DebugEntry(nextId.getAndIncrement(), now, type, title, body, conversation)
         _entries.update { (listOf(entry) + it).take(CAPACITY) }
     }
 

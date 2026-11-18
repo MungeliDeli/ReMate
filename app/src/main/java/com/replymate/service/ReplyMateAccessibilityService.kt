@@ -14,7 +14,12 @@ import com.replymate.debug.DebugType
 import com.replymate.debug.NodeDump
 import android.os.Build
 import com.replymate.overlay.OverlayController
+import com.replymate.reader.MessengerReader
 import com.replymate.reader.NodeUtils
+import com.replymate.reader.ScreenNode
+import com.replymate.reader.ScreenSnapshot
+import com.replymate.reader.Sender
+import com.replymate.reader.WhatsAppReader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,8 +27,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 /**
- * The heart of ReplyMate (spec section 3). In M3 it only decides when to show
- * the bubble. Reading chats is added in M5, and only ever on a bubble tap.
+ * The heart of ReplyMate (spec section 3). Decides when to show the bubble and,
+ * only when the bubble is tapped, reads the open chat.
  *
  * onAccessibilityEvent does no real work: it just (re)schedules a debounced
  * check on the main thread.
@@ -118,45 +123,91 @@ class ReplyMateAccessibilityService : AccessibilityService() {
         handler.postDelayed(foregroundRunnable, Config.FOREGROUND_RECHECK_MS)
     }
 
-    /**
-     * Dumps the active window's node tree into the Debug log (spec F10).
-     * Triggered by long-pressing the bubble or by "Capture in 5 s" on the Debug tab.
-     */
-    private fun captureNodeTree() {
-        val root = try { rootInActiveWindow } catch (_: Exception) { null }
-        if (root == null) {
-            DebugLog.add(DebugType.ERROR, "Capture failed", "No active window to read.")
-            Toast.makeText(this, "Couldn't capture: no window", Toast.LENGTH_SHORT).show()
-            return
-        }
-        try {
-            val pkg = root.packageName?.toString() ?: "?"
-            val lines = NodeDump.capture(root)
-            val screen = overlay?.screenSize()
-            val header = buildString {
-                append("ReplyMate ${BuildConfig.VERSION_NAME} node dump\n")
-                append("package=$pkg  screen=${screen?.x}x${screen?.y}  ")
-                append("android=${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})  ")
-                append("device=${Build.MANUFACTURER} ${Build.MODEL}\n")
-                append("chatDetected=${currentApp ?: "no"}  nodes=${lines.size}\n\n")
-            }
-            DebugLog.add(DebugType.NODE_DUMP, "$pkg (${lines.size} nodes)", header + NodeDump.format(lines))
-            Toast.makeText(this, "Captured ${lines.size} nodes. Open ReplyMate → Debug to share.", Toast.LENGTH_LONG).show()
+    /** Live root of the active window, or null. Caller recycles it. */
+    private fun activeRoot() = try { rootInActiveWindow } catch (_: Exception) { null }
+
+    /** Freezes the active window into a [ScreenNode] tree, or null. */
+    private fun snapshotActiveWindow(): ScreenNode? {
+        val root = activeRoot() ?: return null
+        return try {
+            ScreenSnapshot.from(root)
         } catch (e: Exception) {
-            DebugLog.error("Capture", e)
+            DebugLog.error("Snapshot", e)
+            null
         } finally {
             NodeUtils.recycle(root)
         }
     }
 
-    private fun onBubbleTapped() {
-        // M7 replaces this with the suggestion panel.
-        val name = when (currentApp) {
-            SupportedApp.WHATSAPP -> "WhatsApp"
-            SupportedApp.MESSENGER -> "Messenger"
-            null -> "a"
+    /**
+     * Dumps the active window's node tree into the Debug log (spec F10).
+     * Triggered by long-pressing the bubble, "Capture in 5 s" on the Debug tab,
+     * or automatically when a chat can't be read (spec section 12).
+     */
+    private fun captureNodeTree(existing: ScreenNode? = null, reason: String? = null, showToast: Boolean = true) {
+        val snap = existing ?: snapshotActiveWindow()
+        if (snap == null) {
+            DebugLog.add(DebugType.ERROR, "Capture failed", "No active window to read.")
+            if (showToast) toast("Couldn't capture: no window")
+            return
         }
-        Toast.makeText(this, "ReplyMate sees $name chat. Long-press to capture it for Debug.", Toast.LENGTH_SHORT).show()
+        val pkg = snap.packageName ?: "?"
+        val nodes = snap.count()
+        val screen = overlay?.screenSize()
+        val header = buildString {
+            append("ReplyMate ${BuildConfig.VERSION_NAME} node dump\n")
+            reason?.let { append("reason=$it\n") }
+            append("package=$pkg  screen=${screen?.x}x${screen?.y}  ")
+            append("android=${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})  ")
+            append("device=${Build.MANUFACTURER} ${Build.MODEL}\n")
+            append("chatDetected=${currentApp ?: "no"}  nodes=$nodes\n\n")
+        }
+        DebugLog.add(DebugType.NODE_DUMP, "$pkg ($nodes nodes)", header + NodeDump.format(snap))
+        if (showToast) toast("Captured $nodes nodes. Open ReplyMate → Debug to share.", long = true)
+    }
+
+    /**
+     * Bubble tap (spec 2.2). In M5 this reads the open chat and shows the result
+     * in the Debug tab; M7 replaces the toast with the suggestion panel.
+     */
+    private fun onBubbleTapped() {
+        val app = currentApp ?: return
+        val snap = snapshotActiveWindow()
+        if (snap == null) {
+            DebugLog.add(DebugType.ERROR, "Couldn't read this chat", "No active window.")
+            toast("Couldn't read this chat")
+            return
+        }
+        val screen = overlay?.screenSize() ?: return
+        val reader = when (app) {
+            SupportedApp.WHATSAPP -> WhatsAppReader
+            SupportedApp.MESSENGER -> MessengerReader
+        }
+        val conversation = try {
+            reader.readConversation(snap, screen.x, screen.y)
+        } catch (e: Exception) {
+            DebugLog.error("Read chat", e)
+            null
+        }
+        if (conversation == null) {
+            DebugLog.add(DebugType.ERROR, "Couldn't read this chat", "No messages found. A node dump was captured automatically.")
+            captureNodeTree(existing = snap, reason = "no messages read", showToast = false)
+            toast("Couldn't read this chat. A node dump was saved in Debug.", long = true)
+            return
+        }
+        val me = conversation.messages.count { it.sender == Sender.ME }
+        val them = conversation.messages.count { it.sender == Sender.THEM }
+        DebugLog.add(
+            DebugType.CONVERSATION,
+            "${app.name.lowercase().replaceFirstChar(Char::uppercase)} · ${conversation.messages.size} messages",
+            conversation.describe(),
+            conversation = conversation,
+        )
+        toast("Read ${conversation.messages.size} messages ($me from you, $them from them). See ReplyMate → Debug.", long = true)
+    }
+
+    private fun toast(text: String, long: Boolean = false) {
+        Toast.makeText(this, text, if (long) Toast.LENGTH_LONG else Toast.LENGTH_SHORT).show()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

@@ -12,8 +12,8 @@ Personal use only: it's installed as a sideloaded APK and is not on Google Play.
 | M2 | Settings & persona | ✅ Done |
 | M3 | Accessibility service + bubble | ✅ Done |
 | M4 | Debug screen & node dump | ✅ Done |
-| M5 | Chat readers | ⏳ Next |
-| M6 | Gemini + prompt | — |
+| M5 | Chat readers | ✅ Built (being tuned on the phone) |
+| M6 | Gemini + prompt | ⏳ Next |
 | M7 | Suggestion panel + insert | — |
 | M8 | Polish | — |
 
@@ -76,6 +76,30 @@ Personal use only: it's installed as a sideloaded APK and is not on Google Play.
 5. Do the same in a **Messenger** chat.
 6. Tap **Capture in 5 seconds**, switch to the WhatsApp chat list, and wait. A new dump of that screen should appear.
 7. **For M5:** share one WhatsApp chat dump and one Messenger chat dump with Claude Code (paste the text). Use a 1-to-1 chat with **10 or more messages from both people** visible on screen.
+
+### What M5 contains
+- **Tap the bubble to read the chat.** ReplyMate reads the messages visible on screen (only when you tap) and saves the result in the Debug log. Nothing is sent anywhere yet.
+- **Screen snapshot** ([ScreenNode.kt](app/src/main/java/com/replymate/reader/ScreenNode.kt)): ReplyMate copies the screen once, then reads from that copy. This avoids errors when the screen changes mid-read, and lets the readers be tested without a phone.
+- **WhatsAppReader** ([WhatsAppReader.kt](app/src/main/java/com/replymate/reader/WhatsAppReader.kt)): finds message text by WhatsApp's view ID `message_text` and the contact name by `conversation_contact_name`. If WhatsApp renames these IDs, it falls back to reading all text inside the message list.
+- **MessengerReader** ([MessengerReader.kt](app/src/main/java/com/replymate/reader/MessengerReader.kt)): Messenger has few stable IDs, so it reads the text (or descriptions) inside the biggest scrollable list. It skips buttons, "Seen" labels and timestamps. The contact name is the first text in the top 12% of the screen.
+- **Shared rules** ([ChatReader.kt](app/src/main/java/com/replymate/reader/ChatReader.kt), [TextFilters.kt](app/src/main/java/com/replymate/reader/TextFilters.kt)):
+  - Messages are put in top-to-bottom order; only the newest 15 are kept, each cut to 500 characters.
+  - Date separators, "unread messages" banners, encryption and system notices, timestamps, Seen/Delivered labels and missed-call notices are skipped. Anything centred with a wide gap on both sides is treated as a date or system chip and skipped too.
+  - **Who sent it:** a message whose middle is in the right half of the screen is ME; otherwise it's THEM. The spec suggests putting the line at 45% of the width; 50% is used because long incoming messages can reach past 45% and get mislabelled. You can change this in `Config.SENDER_SPLIT_RATIO`.
+- **Debug tab:** a new "Last parsed conversation" card draws the result like a chat (yours on the right, theirs on the left), so mistakes are easy to spot. Each read also adds a **Conversation** entry to the log.
+- **If nothing can be read**, ReplyMate shows "Couldn't read this chat" and saves a node dump of the screen automatically (spec section 12).
+- **Tests** run the readers on sample screens in [src/test/resources/dumps](app/src/test/resources/dumps). Dumps shared from the phone can be dropped in as new test cases.
+
+**Test M5 on the phone:**
+1. Install the new APK and open a 1-to-1 **WhatsApp** chat with 10+ messages from both of you on screen.
+2. **Tap the bubble.** A message says "Read N messages (X from you, Y from them)".
+3. Open ReplyMate → **Debug** → "Last parsed conversation". Check that:
+   - the messages are in the same order as on screen;
+   - your messages are on the right (ME) and theirs on the left (THEM);
+   - no dates, times, "Seen" or system notices slipped in;
+   - the contact name is right.
+4. Repeat in a **Messenger** chat.
+5. If anything is wrong, **long-press the bubble** in that chat to capture a node dump, then **Share/Copy** it from Debug and paste it to Claude Code along with a note on what was wrong.
 
 ## Building
 

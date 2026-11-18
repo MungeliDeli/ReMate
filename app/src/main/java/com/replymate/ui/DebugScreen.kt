@@ -48,6 +48,9 @@ import com.replymate.BuildConfig
 import com.replymate.debug.DebugEntry
 import com.replymate.debug.DebugLog
 import com.replymate.debug.DebugType
+import com.replymate.reader.ChatMessage
+import com.replymate.reader.Conversation
+import com.replymate.reader.Sender
 import com.replymate.service.ServiceState
 import com.replymate.service.ServiceStatus
 import java.time.Instant
@@ -101,6 +104,10 @@ fun DebugScreen() {
         }
 
         item {
+            LastConversationCard(entries.firstOrNull { it.conversation != null }?.conversation)
+        }
+
+        item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Capture node tree", style = MaterialTheme.typography.titleMedium)
@@ -140,7 +147,7 @@ fun DebugScreen() {
             }
             if (entries.isEmpty()) {
                 Text(
-                    "Nothing yet. Long-press the bubble in a chat to capture one.",
+                    "Nothing yet. Tap the bubble in a chat to read it, or long-press it to capture a node dump.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -148,6 +155,65 @@ fun DebugScreen() {
         }
 
         items(entries, key = { it.id }) { entry -> EntryCard(entry, context) }
+    }
+}
+
+/** Spec F10 "Last parsed conversation": drawn like a chat so ME/THEM mistakes stand out. */
+@Composable
+private fun LastConversationCard(conversation: Conversation?) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Last parsed conversation", style = MaterialTheme.typography.titleMedium)
+            if (conversation == null) {
+                Text(
+                    "Tap the bubble in a chat to read it. The result shows here: your messages on " +
+                        "the right, theirs on the left.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                return@Column
+            }
+            Text(
+                "Chat with ${conversation.contactName ?: "(name not found)"} · ${conversation.messages.size} messages, oldest first",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            conversation.messages.forEach { m -> MessageBubble(m) }
+        }
+    }
+}
+
+@Composable
+private fun MessageBubble(m: ChatMessage) {
+    val isMe = m.sender == Sender.ME
+    val label = when (m.sender) {
+        Sender.ME -> "ME"
+        Sender.THEM -> "THEM"
+        Sender.UNKNOWN -> "?"
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = when (m.sender) {
+            Sender.ME -> Arrangement.End
+            Sender.THEM -> Arrangement.Start
+            Sender.UNKNOWN -> Arrangement.Center
+        },
+    ) {
+        Surface(
+            color = if (isMe) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth(0.8f),
+        ) {
+            Column(Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
+                Text(
+                    label,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isMe) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(m.text, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
     }
 }
 
