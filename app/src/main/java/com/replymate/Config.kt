@@ -73,4 +73,9 @@ object Config {
     const val BUBBLE_FADE_MS = 150L
     /** Default position: right edge, 40% down the screen. */
     const val BUBBLE_DEFAULT_Y_FRACTION = 0.40f
+
+    // --- Suggestion panel (spec F5) ---
+    const val PANEL_MAX_HEIGHT_RATIO = 0.60f
+    /** A bubble tap this soon after an outside-tap closed the panel is the same tap: don't reopen. */
+    const val PANEL_REOPEN_GUARD_MS = 500L
 }

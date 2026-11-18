@@ -14,8 +14,8 @@ Personal use only: it's installed as a sideloaded APK and is not on Google Play.
 | M4 | Debug screen & node dump | ✅ Done |
 | M5 | Chat readers | ✅ Done |
 | M6 | Gemini + prompt | ✅ Done |
-| M7 | Suggestion panel + insert | ⏳ Next |
-| M8 | Polish | — |
+| M7 | Suggestion panel + insert | ✅ Done |
+| M8 | Polish | ⏳ Next |
 
 ### What M1 contains
 - Gradle (Kotlin DSL) project with a version catalog ([gradle/libs.versions.toml](gradle/libs.versions.toml)) and a single `:app` module.
@@ -176,3 +176,36 @@ Kotlin · Jetpack Compose + Material 3 · AGP 9.4.1 (built-in Kotlin) · Kotlin 
    - set Model ID to `gemini-nope` and tap Test: "Model not found…";
    - afterwards, tap **Reset** on the Model ID and fix the key.
 5. Try `gemini-3.8-flash` as the Model ID to compare quality. It should still work: it doesn't accept MINIMAL thinking, so the client falls back to LOW automatically.
+
+### What M7 contains
+- **The full loop:** tap the bubble in a chat. The panel slides up and ReplyMate reads the chat and asks Gemini. Then:
+  - **tap a suggestion** to put it in the message box, and the panel closes; you still press Send yourself;
+  - **long-press** a suggestion to copy it ("Copied").
+- **Suggestion panel** ([SuggestionPanelView.kt](app/src/main/java/com/replymate/overlay/SuggestionPanelView.kt)): a bottom-sheet card, full width minus 12dp margins, at most 60% of the screen tall, in the spec 7 colours with dark mode.
+  - It sits **just above the keyboard** when the keyboard is open, otherwise just above the navigation bar, and follows the keyboard as it opens and closes.
+  - It never takes the keyboard away from WhatsApp or Messenger, and a tap outside it closes it.
+  - **States:**
+    - **Loading:** 3 pulsing placeholders and "Thinking…".
+    - **Results:** 3 cards, each with a tone label and up to 6 lines of text.
+    - **Error:** the spec section 12 message, plus **Retry**, or **Open settings** for key and model problems. A safety block has no retry.
+    - **Empty:** "Couldn't read this chat", plus **Open debug**, and a node dump is saved automatically.
+  - **Header:** **⋮** (capture screen for Debug / open debug), **Regenerate** (reads the chat again and asks for 3 new replies), and **Close**.
+  - With no example messages in your persona, the results show "Add example messages for better replies".
+- **TextInserter** ([TextInserter.kt](app/src/main/java/com/replymate/insert/TextInserter.kt)): finds the message box (WhatsApp by its view ID `entry`, otherwise the lowest text box) and **replaces** its text, with the cursor at the end. If that fails, it copies the reply instead and shows "Copied — paste it in the chat". **Nothing is ever sent.**
+- **Closing the panel** (Close, outside tap, leaving the chat, rotating the screen) cancels any Gemini request still running and forgets the chat. The Debug log still keeps its in-memory entries.
+- **Robustness:**
+  - While you touch the panel, Android can briefly treat it as the active window. Reading and inserting therefore look for the chat app's own window, and the "still in a chat?" check ignores ReplyMate's overlays, but not the ReplyMate app itself.
+  - Tapping the bubble while the panel is open closes it, without the same tap reopening it.
+
+**Test M7 on the phone:**
+1. Install the new APK and open a 1-to-1 **WhatsApp** chat.
+2. **Tap the bubble.** The panel should slide up with "Thinking…", then show 3 suggestions within a few seconds.
+3. **Tap one.** It should appear in the message box and the panel should close. **It must not be sent.** Edit it if you like, then send it yourself.
+4. Open the panel again and **long-press** a card: you should see "Copied".
+5. Tap **Regenerate**: new suggestions should appear. Tap outside the panel: it closes. Tap the bubble while the panel is open: it closes and doesn't reopen.
+6. With the **keyboard open**, tap the bubble: the panel should sit above the keyboard.
+7. Repeat steps 2–3 in **Messenger**.
+8. Error checks:
+   - **Airplane mode:** "No connection. Try again." with **Retry**.
+   - **A wrong key on the Persona tab:** "Your API key was rejected" with **Open settings**, which opens ReplyMate on the Persona tab.
+9. Leave the chat while the panel is open (Back / Home): the panel and bubble should disappear.

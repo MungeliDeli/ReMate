@@ -9,8 +9,7 @@ import android.view.WindowManager
 import com.replymate.Config
 
 /**
- * Owns the overlay windows (spec F4). For M3 that's just the bubble; the
- * suggestion panel is added in M7.
+ * Owns the overlay windows: the bubble (spec F4) and the suggestion panel (F5).
  *
  * Must be created with the AccessibilityService as [context] so that
  * TYPE_ACCESSIBILITY_OVERLAY windows are allowed (no SYSTEM_ALERT_WINDOW needed).
@@ -90,8 +89,67 @@ class OverlayController(
 
     /** Immediate removal, e.g. when the service is shutting down. */
     fun destroy() {
+        closePanel()
         bubble?.animate()?.cancel()
         removeBubbleNow()
+    }
+
+    // --- Suggestion panel (spec F5) ---
+
+    private var panel: SuggestionPanelView? = null
+    private var panelParams: WindowManager.LayoutParams? = null
+
+    val isPanelOpen: Boolean get() = panel != null
+
+    /**
+     * Opens the panel anchored to the bottom, [bottomOffset] px up (keyboard or
+     * navigation bar). Touchable but NOT_FOCUSABLE so the chat app keeps the
+     * keyboard; WATCH_OUTSIDE_TOUCH so a tap elsewhere closes it.
+     */
+    fun openPanel(callbacks: SuggestionPanelView.Callbacks, bottomOffset: Int): SuggestionPanelView {
+        panel?.let { return it }
+        val view = SuggestionPanelView(context, callbacks)
+        view.maxPanelHeight = (screenSize().y * Config.PANEL_MAX_HEIGHT_RATIO).toInt()
+        val lp = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.BOTTOM
+            y = bottomOffset
+        }
+        try {
+            wm.addView(view, lp)
+        } catch (e: Exception) {
+            throw IllegalStateException("Couldn't open panel: ${e.message}", e)
+        }
+        panel = view
+        panelParams = lp
+        view.slideIn()
+        return view
+    }
+
+    fun renderPanel(state: PanelState) {
+        panel?.render(state)
+    }
+
+    /** Keeps the panel just above the keyboard when it opens or closes. */
+    fun setPanelBottomOffset(px: Int) {
+        val view = panel ?: return
+        val lp = panelParams ?: return
+        if (lp.y == px) return
+        lp.y = px
+        if (view.isAttachedToWindow) runCatching { wm.updateViewLayout(view, lp) }
+    }
+
+    fun closePanel() {
+        val view = panel ?: return
+        runCatching { wm.removeViewImmediate(view) }
+        panel = null
+        panelParams = null
     }
 
     /** Call after rotation so the bubble stays on its edge. */

@@ -4,4 +4,16 @@
     <color name="window_background">#FFFFFF</color>
     <!-- Overlay bubble uses the theme primary (spec section 7). -->
     <color name="bubble_background">#1F6F5C</color>
+
+    <!-- Suggestion panel (spec section 7); dark values in values-night. -->
+    <color name="panel_surface">#FFFFFF</color>
+    <color name="panel_card">#FFFFFF</color>
+    <color name="panel_outline">#D5E3DE</color>
+    <color name="panel_primary">#1F6F5C</color>
+    <color name="panel_chip_bg">#EAF4F1</color>
+    <color name="panel_text">#1B1F1E</color>
+    <color name="panel_text_secondary">#5B6662</color>
+    <color name="panel_placeholder">#E6EEEB</color>
+    <color name="panel_ripple">#331F6F5C</color>
+    <color name="panel_error">#B3261E</color>
 </resources>
