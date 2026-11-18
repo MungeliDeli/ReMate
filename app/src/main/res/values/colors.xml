@@ -2,4 +2,6 @@
     <color name="brand_primary">#1F6F5C</color>
     <color name="brand_surface">#EAF4F1</color>
     <color name="window_background">#FFFFFF</color>
+    <!-- Overlay bubble uses the theme primary (spec section 7). -->
+    <color name="bubble_background">#1F6F5C</color>
 </resources>

@@ -1,3 +1,4 @@
 <resources>
     <color name="window_background">#1C1F1E</color>
+    <color name="bubble_background">#4FB39A</color>
 </resources>

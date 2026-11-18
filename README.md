@@ -10,8 +10,8 @@ Personal use only: it's installed as a sideloaded APK and is not on Google Play.
 |---|---|---|
 | M1 | Skeleton & build pipeline | ✅ Done |
 | M2 | Settings & persona | ✅ Done |
-| M3 | Accessibility service + bubble | ⏳ Next |
-| M4 | Debug screen & node dump | — |
+| M3 | Accessibility service + bubble | ✅ Done |
+| M4 | Debug screen & node dump | ⏳ Next |
 | M5 | Chat readers | — |
 | M6 | Gemini + prompt | — |
 | M7 | Suggestion panel + insert | — |
@@ -38,7 +38,25 @@ Personal use only: it's installed as a sideloaded APK and is not on Google Play.
 2. Tap **Add API key**, which takes you to Persona. Paste any text as the key for now (it isn't checked until M6), fill in your name and add 5+ example messages.
 3. Go back to **Setup**: items 1 and 2 should now have green ticks.
 4. Fully close ReplyMate (swipe it away from recent apps) and reopen it. Everything should still be filled in.
-5. Tap **Enable service**. The Accessibility settings page should open. ReplyMate **won't be in the list yet**, because the service itself is added in M3, so item 3 stays unticked for now.
+5. Tap **Enable service**. The Accessibility settings page should open. (In M2 ReplyMate wasn't in that list yet; it appears from M3 on.)
+
+### What M3 contains
+- **Accessibility service** ([ReplyMateAccessibilityService.kt](app/src/main/java/com/replymate/service/ReplyMateAccessibilityService.kt)): it only listens to WhatsApp, WhatsApp Business and Messenger. In this milestone it **doesn't read any messages**; it only decides whether to show the bubble.
+- **Chat detection** ([AppDetector.kt](app/src/main/java/com/replymate/service/AppDetector.kt)): a screen counts as a chat when it belongs to one of those apps **and** has a message box in the lower part of the screen. For WhatsApp the box is found by its view ID `entry`. This rules out the chat list, Status/Stories and Settings.
+- **Leaving a chat:** the spec's config only sends ReplyMate events from the three chat apps, so it never hears about you switching to another app. While the bubble is visible, the service therefore checks once a second which app is in front (the app name only, never screen content) and hides the bubble when that's no longer a chat app.
+- **Floating bubble:** a 52dp teal circle with 85% opacity at rest, 100% while pressed, and a 150 ms fade in and out. Its default spot is the right edge, 40% down the screen. You can drag it anywhere; when you let go it snaps to the nearest side, and that position is remembered. Tapping it gives a short vibration; for now it only shows a toast (the suggestion panel comes in M7).
+- All tunable numbers are in [Config.kt](app/src/main/java/com/replymate/Config.kt).
+
+**Test M3 on the phone:**
+1. Install the new APK over the old one.
+2. On **Setup**, tap **Enable service**, find **ReplyMate** in the list and switch it on. On Android 13+, if it's greyed out, follow the "Allow restricted settings" steps shown in the app. Come back to ReplyMate: item 3 should have a green tick.
+3. Open WhatsApp and the **chat list**: no bubble.
+4. Open a **chat**: the bubble fades in on the right edge. Tap it: you should feel a short vibration and see "ReplyMate sees WhatsApp chat…".
+5. Go back to the chat list: the bubble fades out. Open Status or Settings in WhatsApp: no bubble.
+6. In a chat, drag the bubble to the left side and let go: it snaps to the edge. Leave the chat, come back: it's still on the left.
+7. Press Home or switch to another app: the bubble disappears within about a second.
+8. Repeat steps 3–5 in **Messenger** (and WhatsApp Business if you use it).
+9. If the bubble shows where it shouldn't (or not in a chat), note which screen it happened on. The M4 Debug tab lets us capture what ReplyMate sees there.
 
 ## Building
 
