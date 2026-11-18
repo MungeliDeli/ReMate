@@ -11,8 +11,8 @@ Personal use only: it's installed as a sideloaded APK and is not on Google Play.
 | M1 | Skeleton & build pipeline | ✅ Done |
 | M2 | Settings & persona | ✅ Done |
 | M3 | Accessibility service + bubble | ✅ Done |
-| M4 | Debug screen & node dump | ⏳ Next |
-| M5 | Chat readers | — |
+| M4 | Debug screen & node dump | ✅ Done |
+| M5 | Chat readers | ⏳ Next |
 | M6 | Gemini + prompt | — |
 | M7 | Suggestion panel + insert | — |
 | M8 | Polish | — |
@@ -57,6 +57,25 @@ Personal use only: it's installed as a sideloaded APK and is not on Google Play.
 7. Press Home or switch to another app: the bubble disappears within about a second.
 8. Repeat steps 3–5 in **Messenger** (and WhatsApp Business if you use it).
 9. If the bubble shows where it shouldn't (or not in a chat), note which screen it happened on. The M4 Debug tab lets us capture what ReplyMate sees there.
+
+### What M4 contains
+- **Debug log** ([DebugLog.kt](app/src/main/java/com/replymate/debug/DebugLog.kt)): keeps the last 50 entries in memory only. It's never written to disk or Logcat, and it's cleared when the service stops or you tap **Clear**. Entry types are node dump, conversation, request, response, error and info; later milestones fill in the others.
+- **Node-tree capture** ([NodeDump.kt](app/src/main/java/com/replymate/debug/NodeDump.kt)): records every element on the screen, one indented line each, with its class, view ID, text (cut to 60 characters), description, position on screen, and editable/clickable/scrollable flags. A header line notes the app, screen size, Android version and phone model. There are two ways to capture:
+  - **Long-press the bubble** in a chat. The spec puts this in the suggestion panel's menu; that's added in M7.
+  - **Capture in 5 seconds** on the Debug tab, then switch to the screen you want. Use this for screens where the bubble doesn't show.
+- **Debug tab:** shows the service status (enabled in settings, running, last app seen, chat detected), the capture button, and the log. Tap an entry to expand it. Each entry has **Share** (opens Android's share menu) and **Copy**.
+- Tapping the bubble still only shows a toast; the suggestion panel comes in M7.
+
+> A node dump includes the visible text of the chat (each piece cut to 60 characters). It stays on the phone unless you share it yourself.
+
+**Test M4 on the phone:**
+1. Install the new APK and open the **Debug** tab. "Enabled in settings" and "Running" should both say **Yes**.
+2. Open a WhatsApp chat and **long-press the bubble** for about half a second. You should feel a stronger vibration and see "Captured N nodes…".
+3. Back in ReplyMate's **Debug** tab, a **Node dump** entry appears. Tap it to expand, then try **Share** and **Copy**.
+4. Check the status card: "Last app seen" should be `com.whatsapp` and "Chat detected" should say Yes.
+5. Do the same in a **Messenger** chat.
+6. Tap **Capture in 5 seconds**, switch to the WhatsApp chat list, and wait. A new dump of that screen should appear.
+7. **For M5:** share one WhatsApp chat dump and one Messenger chat dump with Claude Code (paste the text). Use a 1-to-1 chat with **10 or more messages from both people** visible on screen.
 
 ## Building
 

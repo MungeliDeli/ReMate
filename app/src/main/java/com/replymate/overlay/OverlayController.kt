@@ -18,6 +18,7 @@ import com.replymate.Config
 class OverlayController(
     private val context: Context,
     private val onBubbleTap: () -> Unit,
+    private val onBubbleLongPress: () -> Unit,
     private val onPositionChanged: (BubblePosition) -> Unit,
 ) {
     private val wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -51,6 +52,7 @@ class OverlayController(
         val view = BubbleView(
             context,
             onTap = onBubbleTap,
+            onLongPress = onBubbleLongPress,
             onDrag = ::dragBy,
             onDragEnd = ::snapToEdge,
         )
@@ -135,7 +137,7 @@ class OverlayController(
         if (view.isAttachedToWindow) runCatching { wm.updateViewLayout(view, lp) }
     }
 
-    private fun screenSize(): Point =
+    fun screenSize(): Point =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val b = wm.currentWindowMetrics.bounds
             Point(b.width(), b.height())

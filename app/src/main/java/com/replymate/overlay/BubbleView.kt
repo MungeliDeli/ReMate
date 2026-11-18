@@ -20,6 +20,7 @@ import kotlin.math.abs
 class BubbleView(
     context: Context,
     private val onTap: () -> Unit,
+    private val onLongPress: () -> Unit,
     private val onDrag: (dx: Int, dy: Int) -> Unit,
     private val onDragEnd: () -> Unit,
 ) : FrameLayout(context) {
@@ -30,6 +31,14 @@ class BubbleView(
     private var lastX = 0f
     private var lastY = 0f
     private var dragging = false
+    private var longPressed = false
+
+    private val longPressRunnable = Runnable {
+        longPressed = true
+        circle.alpha = Config.BUBBLE_IDLE_ALPHA
+        circle.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        onLongPress()
+    }
 
     private val circle = ImageView(context).apply {
         setImageResource(R.drawable.ic_bubble)
@@ -54,11 +63,16 @@ class BubbleView(
                     downX = e.rawX; downY = e.rawY
                     lastX = e.rawX; lastY = e.rawY
                     dragging = false
+                    longPressed = false
                     circle.alpha = 1f
+                    postDelayed(longPressRunnable, ViewConfiguration.getLongPressTimeout().toLong())
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (!dragging && (abs(e.rawX - downX) > touchSlop || abs(e.rawY - downY) > touchSlop)) {
+                    if (!dragging && !longPressed &&
+                        (abs(e.rawX - downX) > touchSlop || abs(e.rawY - downY) > touchSlop)
+                    ) {
                         dragging = true
+                        removeCallbacks(longPressRunnable)
                     }
                     if (dragging) {
                         onDrag((e.rawX - lastX).toInt(), (e.rawY - lastY).toInt())
@@ -66,10 +80,11 @@ class BubbleView(
                     }
                 }
                 MotionEvent.ACTION_UP -> {
+                    removeCallbacks(longPressRunnable)
                     circle.alpha = Config.BUBBLE_IDLE_ALPHA
                     if (dragging) {
                         onDragEnd()
-                    } else {
+                    } else if (!longPressed) {
                         circle.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                         circle.performClick()
                         onTap()
@@ -77,6 +92,7 @@ class BubbleView(
                     dragging = false
                 }
                 MotionEvent.ACTION_CANCEL -> {
+                    removeCallbacks(longPressRunnable)
                     circle.alpha = Config.BUBBLE_IDLE_ALPHA
                     if (dragging) onDragEnd()
                     dragging = false
@@ -84,6 +100,11 @@ class BubbleView(
             }
             true
         }
+    }
+
+    override fun onDetachedFromWindow() {
+        removeCallbacks(longPressRunnable)
+        super.onDetachedFromWindow()
     }
 
     private fun dp(v: Float): Float = v * resources.displayMetrics.density
