@@ -49,7 +49,7 @@ class GeminiClientTest {
         val gen = json["generationConfig"]!!.jsonObject
         assertEquals("application/json", gen["responseMimeType"]!!.jsonPrimitive.content)
         assertTrue(gen.containsKey("responseJsonSchema"))
-        assertEquals("400", gen["maxOutputTokens"]!!.jsonPrimitive.content)
+        assertEquals("600", gen["maxOutputTokens"]!!.jsonPrimitive.content)
         assertEquals("MINIMAL", gen["thinkingConfig"]!!.jsonObject["thinkingLevel"]!!.jsonPrimitive.content)
     }
 

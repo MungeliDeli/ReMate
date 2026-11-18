@@ -28,16 +28,30 @@ class HardRulesTest {
     fun sourcesFound() = assertTrue("run from the app module", kotlin.size > 20)
 
     @Test
-    fun neverClicksOrGesturesInOtherApps() {
-        // No click on another app's node (e.g. Send), no global actions, no synthetic taps.
-        assertEquals(emptyList<String>(), offenders(Regex("""ACTION_CLICK|ACTION_LONG_CLICK|performGlobalAction|dispatchGesture""")))
+    fun neverClicksInOtherApps() {
+        // No click on another app's node (e.g. Send), no global actions (back/home/...).
+        assertEquals(emptyList<String>(), offenders(Regex("""ACTION_CLICK|ACTION_LONG_CLICK|performGlobalAction""")))
     }
 
     @Test
-    fun onlyNodeActionsAreSetTextAndSelection() {
+    fun onlyNodeActionsAreSetTextSelectionAndScroll() {
+        val allowed = listOf("ACTION_SET_TEXT", "ACTION_SET_SELECTION", "ACTION_SCROLL_BACKWARD", "ACTION_SCROLL_FORWARD")
         val actions = offenders(Regex("""\.performAction\("""))
         assertTrue("TextInserter must set text", actions.any { "ACTION_SET_TEXT" in it })
-        actions.forEach { assertTrue("unexpected node action: $it", "ACTION_SET_TEXT" in it || "ACTION_SET_SELECTION" in it) }
+        actions.forEach { line -> assertTrue("unexpected node action: $line", allowed.any { it in line }) }
+        // Scrolling only happens in the chat scroller.
+        actions.filter { "ACTION_SCROLL" in it }.forEach { assertTrue(it, it.contains("ChatScroller.kt")) }
+    }
+
+    @Test
+    fun gesturesOnlyInChatScrollerAsStraightVerticalSwipes() {
+        // dispatchGesture is only used to scroll history (Messenger has no scroll action).
+        offenders(Regex("""dispatchGesture""")).forEach { assertTrue("gesture outside scroller: $it", it.contains("ChatScroller.kt")) }
+        val scroller = kotlin.entries.single { it.key.endsWith("ChatScroller.kt") }.value
+        // Every path point uses the same x (s.x): a vertical drag, never a tap elsewhere.
+        val points = Regex("""(?:moveTo|lineTo)\(([^,]+),""").findAll(scroller).map { it.groupValues[1].trim() }.toList()
+        assertTrue(points.isNotEmpty())
+        points.forEach { assertEquals("swipe x must be s.x", "s.x", it) }
     }
 
     @Test

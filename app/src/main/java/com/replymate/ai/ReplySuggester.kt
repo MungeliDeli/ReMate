@@ -15,17 +15,22 @@ import com.replymate.service.SupportedApp
  */
 class ReplySuggester(private val client: GeminiClient) {
 
-    suspend fun suggest(settings: AppSettings, conversation: Conversation, label: String = "Chat"): GeminiResult {
+    suspend fun suggest(
+        settings: AppSettings,
+        conversation: Conversation,
+        label: String = "Chat",
+        options: ReplyOptions = ReplyOptions(),
+    ): GeminiResult {
         val apiKey = settings.apiKey.trim()
         if (apiKey.isEmpty()) {
             DebugLog.add(DebugType.ERROR, "$label: no API key", GeminiError.NO_KEY.userMessage)
             return GeminiResult.Failure(GeminiError.NO_KEY) // no network call (spec section 12)
         }
         val model = settings.effectiveModelId
-        val prompt = PromptBuilder.build(settings, conversation)
+        val prompt = PromptBuilder.build(settings, conversation, options)
         DebugLog.add(
             DebugType.REQUEST,
-            "$label → $model (${conversation.messages.size} messages)",
+            "$label → $model (${conversation.messages.size} messages, ${options.summary()})",
             mask(prompt.describe(), apiKey),
         )
 

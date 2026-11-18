@@ -19,6 +19,8 @@ data class AppSettings(
     val apiKey: String = "",
     val modelId: String = Config.DEFAULT_MODEL_ID,
     val shareFirstName: Boolean = false,
+    /** "Chat context": how many screens of the chat to read (1-3). */
+    val contextScreens: Int = Config.DEFAULT_CONTEXT_SCREENS,
 ) {
     val hasApiKey: Boolean get() = apiKey.isNotBlank()
 

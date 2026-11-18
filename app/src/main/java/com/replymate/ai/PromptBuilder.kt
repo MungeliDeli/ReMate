@@ -21,7 +21,7 @@ object PromptBuilder {
 
     val TONES = listOf("casual", "warm", "short")
 
-    fun build(settings: AppSettings, conversation: Conversation): Prompt {
+    fun build(settings: AppSettings, conversation: Conversation, options: ReplyOptions = ReplyOptions()): Prompt {
         val name = settings.displayName.trim().ifEmpty { "the user" }
         val app = when (conversation.app) {
             SupportedApp.WHATSAPP -> "WhatsApp"
@@ -40,10 +40,27 @@ object PromptBuilder {
                 examples.forEach { append("- ").append(it).append('\n') }
             }
             append("\nRULES:\n")
-            append("- Give exactly 3 different reply options with these tones: ")
-            append(TONES.joinToString(", ") { "\"$it\"" }).append(".\n")
+            if (options.isAuto) {
+                append("- Give exactly 3 different reply options with these tones: ")
+                append(TONES.joinToString(", ") { "\"$it\"" }).append(".\n")
+            } else {
+                append("- Give exactly 3 different reply options. For this reply, the owner asked for:\n")
+                if (options.moods.isNotEmpty()) {
+                    append("  - Mood: ").append(options.moods.joinToString(" and ") { it.instruction }).append('\n')
+                }
+                options.vibe?.let { append("  - Vibe: ").append(it.instruction).append('\n') }
+                append("- All 3 options follow that request but must be clearly different from each other in angle and wording. ")
+                append("For \"tone\", give each a 1-3 word label for its angle, e.g. \"teasing\", \"smooth\", \"bold\".\n")
+                append("- Stay in $name's voice: the request changes the mood of this reply, not who $name is.\n")
+                append("- If the requested mood clearly doesn't fit the latest message (e.g. flirting when they share bad news), stay respectful and lean towards kindness.\n")
+            }
             append("- Reply to the latest message(s) from $other, using the earlier context.\n")
-            append("- Match $name's typical message length. Never write more than 3 sentences.\n")
+            val length = options.length
+            if (length == null) {
+                append("- Match $name's typical message length. Never write more than 3 sentences.\n")
+            } else {
+                append("- Length: ${length.instruction}.\n")
+            }
             append("- Language: ${languageRule(settings.replyLanguage)}\n")
             append("- Never invent facts, plans, promises or personal details that are not in the chat or the profile.\n")
             append("- Placeholders like [PHONE], [EMAIL], [LINK], [NUMBER] are redacted data; do not repeat them.\n")

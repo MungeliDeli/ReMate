@@ -21,7 +21,8 @@ object Config {
     const val GEMINI_READ_TIMEOUT_S = 20L
     const val GEMINI_RETRY_DELAY_MS = 2_000L
     const val GEMINI_TEMPERATURE = 0.9
-    const val GEMINI_MAX_OUTPUT_TOKENS = 400
+    /** Spec says 400; raised so three "Long" replies always fit. */
+    const val GEMINI_MAX_OUTPUT_TOKENS = 600
     /** Used if the model rejects MINIMAL thinking and LOW is used instead (thinking tokens count as output). */
     const val GEMINI_MAX_OUTPUT_TOKENS_WITH_THINKING = 1024
     const val SUGGESTION_COUNT = 3
@@ -42,7 +43,18 @@ object Config {
     const val MAX_NODES_SCAN = 3000
 
     // --- Chat reading (spec F3) ---
-    const val MAX_MESSAGES = 15
+    /** Messages kept from one screen. */
+    const val MAX_MESSAGES = 40
+    /** Messages kept after joining several screens (sent to Gemini). */
+    const val MAX_CONTEXT_MESSAGES = 40
+    /** "Chat context" setting: how many screens to read (1 = only what's visible). */
+    const val DEFAULT_CONTEXT_SCREENS = 3
+    const val MAX_CONTEXT_SCREENS = 3
+    /** Wait after each scroll for the chat to settle before reading. */
+    const val SCROLL_SETTLE_MS = 500L
+    /** Messenger fallback swipe: move time, then hold still so the list doesn't fling. */
+    const val SWIPE_MOVE_MS = 350L
+    const val SWIPE_HOLD_MS = 200L
     const val MAX_MESSAGE_CHARS = 500
     /**
      * A message whose horizontal centre is at or right of this fraction of the

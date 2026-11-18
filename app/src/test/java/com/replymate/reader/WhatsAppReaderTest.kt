@@ -49,13 +49,14 @@ class WhatsAppReaderTest {
 
     @Test
     fun keepsOnlyNewestMessagesAndTrimsLongOnes() {
-        val bubbles = (0 until 20).map { i ->
-            val top = 300 + i * 80
-            ScreenNode(viewId = "com.whatsapp:id/message_text", text = if (i == 19) "x".repeat(800) else "m$i", bounds = Box(60, top, 500, top + 60))
+        val total = Config.MAX_MESSAGES + 5
+        val bubbles = (0 until total).map { i ->
+            val top = 300 + i * 40
+            ScreenNode(viewId = "com.whatsapp:id/message_text", text = if (i == total - 1) "x".repeat(800) else "m$i", bounds = Box(60, top, 500, top + 30))
         }
         val c = WhatsAppReader.readConversation(ScreenNode(children = bubbles, bounds = Box(0, 0, w, h)), w, h)!!
         assertEquals(Config.MAX_MESSAGES, c.messages.size)
-        assertEquals("m5", c.messages.first().text)
+        assertEquals("m5", c.messages.first().text) // oldest 5 dropped
         assertTrue(c.messages.last().text.length <= Config.MAX_MESSAGE_CHARS + 1)
     }
 

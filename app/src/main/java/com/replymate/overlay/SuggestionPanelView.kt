@@ -20,7 +20,12 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import com.replymate.R
+import com.replymate.ai.Mood
+import com.replymate.ai.ReplyLength
+import com.replymate.ai.ReplyOptions
 import com.replymate.ai.Suggestion
+import com.replymate.ai.Vibe
+import android.view.ViewGroup
 
 /**
  * Bottom-sheet suggestion panel (spec F5 / section 7), built with plain Views
@@ -33,6 +38,8 @@ class SuggestionPanelView(
 ) : FrameLayout(context) {
 
     interface Callbacks {
+        fun onSuggest(options: ReplyOptions)
+        fun onShowOptions()
         fun onPick(suggestion: Suggestion)
         fun onCopy(suggestion: Suggestion)
         fun onRegenerate()
@@ -132,13 +139,23 @@ class SuggestionPanelView(
     fun render(state: PanelState) {
         stopPulse()
         content.removeAllViews()
-        regenerateButton.isEnabled = state != PanelState.Loading
+        // Regenerate only makes sense once suggestions (or an error) are showing.
+        regenerateButton.isEnabled = state is PanelState.Results || state is PanelState.Error
         regenerateButton.alpha = if (regenerateButton.isEnabled) 1f else 0.4f
         when (state) {
-            PanelState.Loading -> renderLoading()
+            is PanelState.Options -> {
+                selection = state.options
+                renderOptions()
+            }
+            is PanelState.Reading -> renderLoading(
+                if (state.screens > 1) "Reading the chat (${state.screens} screens)…" else "Reading the chat…",
+            )
+            PanelState.Loading -> renderLoading("Thinking…")
             is PanelState.Results -> {
+                state.summary?.let { content.addView(caption(it)) }
                 state.hint?.let { content.addView(caption(it)) }
                 state.suggestions.forEachIndexed { i, s -> content.addView(suggestionCard(s), cardParams(i)) }
+                content.addView(textButton("Change style") { callbacks.onShowOptions() })
             }
             is PanelState.Error -> {
                 content.addView(message(state.message, color(R.color.panel_error)))
@@ -152,8 +169,88 @@ class SuggestionPanelView(
         scroll.scrollTo(0, 0)
     }
 
-    private fun renderLoading() {
-        content.addView(caption("Thinking…"))
+    // ------------------------------------------------------------ style options
+
+    private var selection = ReplyOptions()
+
+    private fun renderOptions() {
+        content.removeAllViews()
+        content.addView(sectionLabel("Mood (up to ${ReplyOptions.MAX_MOODS})"))
+        content.addView(chipRow(Mood.entries.map { m -> Triple(m.label, m in selection.moods) { selection = selection.toggle(m) } }))
+        content.addView(sectionLabel("Length"))
+        content.addView(chipRow(ReplyLength.entries.map { l -> Triple(l.label, selection.length == l) { selection = selection.toggle(l) } }))
+        content.addView(sectionLabel("Vibe"))
+        content.addView(chipRow(Vibe.entries.map { v -> Triple(v.label, selection.vibe == v) { selection = selection.toggle(v) } }))
+
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        row.addView(TextView(context).apply {
+            text = if (selection.isAuto) "Suggest" else "Suggest: ${selection.summary()}"
+            setTextColor(0xFFFFFFFF.toInt())
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            gravity = Gravity.CENTER
+            minHeight = dp(48)
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            setPadding(dp(16), 0, dp(16), 0)
+            background = RippleDrawable(ripple, rounded(primary, dp(24)), null)
+            isClickable = true
+            contentDescription = "Suggest replies, style ${selection.summary()}"
+            setOnClickListener { callbacks.onSuggest(selection) }
+        }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        if (!selection.isAuto) {
+            row.addView(textButton("Clear") {
+                selection = ReplyOptions()
+                renderOptions()
+            })
+        }
+        content.addView(row, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(12) })
+        if (selection.isAuto) {
+            content.addView(caption("Nothing picked = casual, warm and short options."))
+        }
+    }
+
+    private fun sectionLabel(text: String) = TextView(context).apply {
+        this.text = text.uppercase()
+        setTextColor(textSecondary)
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
+        letterSpacing = 0.06f
+        setPadding(dp(2), dp(8), 0, dp(4))
+    }
+
+    /** Wrapping row of toggle chips; tapping one updates [selection] and redraws. */
+    private fun chipRow(chips: List<Triple<String, Boolean, () -> Unit>>): View {
+        val flow = FlowLayout(context, dp(8))
+        for ((label, selected, toggle) in chips) {
+            flow.addView(TextView(context).apply {
+                text = label
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+                gravity = Gravity.CENTER
+                minHeight = dp(40)
+                minWidth = dp(48)
+                setPadding(dp(14), 0, dp(14), 0)
+                setTextColor(if (selected) 0xFFFFFFFF.toInt() else textColor)
+                val shape = rounded(if (selected) primary else color(R.color.panel_card), dp(20)).apply {
+                    if (!selected) setStroke(dp(1), color(R.color.panel_outline))
+                }
+                background = RippleDrawable(ripple, shape, null)
+                isClickable = true
+                isSelected = selected
+                contentDescription = "$label${if (selected) ", selected" else ""}"
+                setOnClickListener {
+                    toggle()
+                    renderOptions()
+                }
+            })
+        }
+        return flow
+    }
+
+    private fun renderLoading(label: String) {
+        content.addView(caption(label))
         val placeholders = (0 until 3).map { i ->
             View(context).apply { background = rounded(color(R.color.panel_placeholder), dp(12)) }
                 .also { content.addView(it, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, dp(64)).apply { if (i > 0) topMargin = dp(8) }) }
@@ -274,4 +371,43 @@ class SuggestionPanelView(
         }
     }
 
+    /** Minimal wrapping row layout for chips. */
+    private class FlowLayout(context: Context, private val gap: Int) : ViewGroup(context) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val maxWidth = MeasureSpec.getSize(widthMeasureSpec)
+            var x = 0
+            var y = 0
+            var rowHeight = 0
+            for (i in 0 until childCount) {
+                val c = getChildAt(i)
+                c.measure(MeasureSpec.makeMeasureSpec(maxWidth, MeasureSpec.AT_MOST), MeasureSpec.UNSPECIFIED)
+                if (x > 0 && x + c.measuredWidth > maxWidth) {
+                    x = 0
+                    y += rowHeight + gap
+                    rowHeight = 0
+                }
+                x += c.measuredWidth + gap
+                rowHeight = maxOf(rowHeight, c.measuredHeight)
+            }
+            setMeasuredDimension(maxWidth, y + rowHeight)
+        }
+
+        override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+            val maxWidth = r - l
+            var x = 0
+            var y = 0
+            var rowHeight = 0
+            for (i in 0 until childCount) {
+                val c = getChildAt(i)
+                if (x > 0 && x + c.measuredWidth > maxWidth) {
+                    x = 0
+                    y += rowHeight + gap
+                    rowHeight = 0
+                }
+                c.layout(x, y, x + c.measuredWidth, y + c.measuredHeight)
+                x += c.measuredWidth + gap
+                rowHeight = maxOf(rowHeight, c.measuredHeight)
+            }
+        }
+    }
 }

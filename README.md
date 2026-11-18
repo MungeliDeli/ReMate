@@ -5,7 +5,7 @@ A personal Android tool. When a WhatsApp or Messenger chat is open, a small teal
 - **Personal use only:** it's installed as a sideloaded APK and is not on Google Play.
 - **Phones:** Android 8.0+ (API 26+).
 - **Apps:** WhatsApp, WhatsApp Business, Messenger.
-- **Version:** 1.0.0 (spec v1 complete).
+- **Version:** 1.1.0. This is spec v1 plus reply styles and up to 3 screens of chat history.
 
 ---
 
@@ -30,6 +30,7 @@ Open **ReplyMate**. The **Setup** tab shows a checklist; each item gets a green 
    - **Writing style:** e.g. "short messages, lowercase, light slang, occasional emoji".
    - **Example messages**, one per line. **This matters most.** Paste 15–20 messages you've really sent (max 40). The tick needs your name and at least 5.
    - **Things to avoid**, and **Reply language** (Match the chat / English / Mixed).
+   - **Chat context:** how much of the chat to read. Choose **This screen**, **2 screens** or **3 screens** (the default). For 2–3 screens, ReplyMate scrolls the chat up and back down when you ask for suggestions.
 
    Then scroll down and tap **Test with sample chat**. Within a few seconds you should see 3 suggestions labelled CASUAL / WARM / SHORT. If they don't sound like you, improve the example messages.
 3. **Accessibility service**
@@ -42,10 +43,15 @@ When all three items have ticks, the screen says **"All set"**.
 ## 3. Daily use
 
 1. Open a chat in WhatsApp or Messenger. The **bubble** fades in at the screen edge. It only shows on chat screens, not the chat list, Status or Settings.
-2. **Tap the bubble.** A panel slides up with "Thinking…", then shows **3 suggestions** (casual / warm / short).
+2. **Tap the bubble.** A panel slides up with **style options**, and your last choice is pre-selected. You can combine them:
+   - **Mood** (up to 2): Light · Flirty · Romantic · Sentimental · Comforting (for when they're sad)
+   - **Length:** Short · Medium · Long
+   - **Vibe:** Chilled · Funny · Playful · Serious
+
+   Leave everything unpicked for the classic casual / warm / short trio. Then tap **Suggest**. ReplyMate reads the chat (scrolling up 1–2 screens and back, depending on Chat context), thinks, and shows **3 suggestions**. They all follow your style but each takes a different angle (e.g. TEASING / SMOOTH / BOLD). Your persona stays the same; the style only changes the mood of this reply.
 3. **Tap a suggestion** and it's placed in the message box. Edit it if you want, then **press Send yourself**. **Long-press** a suggestion to copy it instead.
-4. In the panel header:
-   - **↻ Regenerate** gets 3 new suggestions;
+4. Under the suggestions, **Change style** takes you back to the options. In the panel header:
+   - **↻ Regenerate** gets 3 new suggestions with the same style, using the chat already read (no second scroll);
    - **✕** closes the panel;
    - **⋮** captures the screen for Debug, or opens Debug.
 
@@ -79,8 +85,12 @@ When all three items have ticks, the screen says **"All set"**.
 
 ## 5. Privacy and safety (hard rules)
 
-- **Nothing is ever sent automatically.** The only actions ReplyMate performs in other apps are "set text" and "move cursor". No code path clicks Send; a unit test fails if anyone adds one.
-- **It only reads chats when you tap the bubble**, and only the messages visible on screen (the newest 15, each cut to 500 characters).
+- **Nothing is ever sent automatically.** The only things ReplyMate does in other apps are:
+  - set the message box text and move the cursor;
+  - **scroll the chat** up and back down, to read more history.
+
+  It never clicks or taps anything. Scrolling uses the list's own scroll action (WhatsApp), or a straight vertical swipe in the message area (Messenger, which offers no scroll action). Unit tests fail if anyone adds a click, or a gesture that isn't a vertical swipe.
+- **It only reads chats when you tap Suggest**: the visible messages, plus up to 2 screens above when Chat context is 2–3 screens. That's at most 40 messages, each cut to 500 characters. The chat is always scrolled back down afterwards, even if you close the panel midway.
 - **Personal data is redacted before anything leaves the phone:**
   - phone numbers become `[PHONE]` (`+260 97 123 4567`, `0971234567`…);
   - emails become `[EMAIL]` and links become `[LINK]`;
@@ -124,6 +134,8 @@ SettingsRepository (DataStore) · DebugLog (memory) · MainActivity: Setup / Per
 |---|---|---|
 | Config | [Config.kt](app/src/main/java/com/replymate/Config.kt) | **Every tunable number**: sender split, max messages, timeouts, model ID… |
 | Service and detection | [service/](app/src/main/java/com/replymate/service/) | A chat screen means a supported app **plus** a message box in the lower part of the screen. Events are debounced. While the bubble shows, a once-a-second check of which app is in front hides it when you leave. |
+| History | [service/ChatScroller.kt](app/src/main/java/com/replymate/service/ChatScroller.kt), [reader/ChatHistory.kt](app/src/main/java/com/replymate/reader/ChatHistory.kt), [reader/SwipePlan.kt](app/src/main/java/com/replymate/reader/SwipePlan.kt) | Read a screen, scroll one page up (WhatsApp: `ACTION_SCROLL_BACKWARD`; Messenger: a vertical swipe that holds still at the end so the list doesn't fling), read again, then scroll back. While scrolling, the panel lets touches pass through. Screens are joined by removing the overlap. |
+| Reply styles | [ai/ReplyOptions.kt](app/src/main/java/com/replymate/ai/ReplyOptions.kt) | Mood (up to 2) / Length / Vibe. The prompt swaps the casual/warm/short rule for the requested style; the length choice replaces the "max 3 sentences" rule; the persona sections are unchanged. |
 | Readers | [reader/](app/src/main/java/com/replymate/reader/) | Work on a frozen `ScreenNode` copy of the screen, so they're unit-testable. **WhatsApp:** `message_text` IDs; delivery ticks (`status`) mean ME, otherwise position. **Messenger:** parses the "Name, message, double tap to see…" accessibility text; the name decides the sender; quotes, headers and receipts are dropped; position is the fallback. |
 | AI | [ai/](app/src/main/java/com/replymate/ai/) | Redactor, PromptBuilder (spec 8.2/8.3), GeminiClient (REST, see below), ResponseParser, ReplySuggester (logs to Debug, masks the key). |
 | Overlay | [overlay/](app/src/main/java/com/replymate/overlay/) | Bubble (52dp, draggable, snaps to the nearest side) and panel (above the keyboard; loading/results/error/empty states). |
@@ -144,7 +156,7 @@ The default model `gemini-3.5-flash-lite` can be changed on the Persona tab with
 - GeminiClient against a local fake server (retries, auth, thinking fallback, safety);
 - the readers, on synthetic and anonymised real layouts in [src/test/resources/dumps](app/src/test/resources/dumps);
 - bubble geometry, the Debug log, panel states;
-- [HardRulesTest](app/src/test/java/com/replymate/HardRulesTest.kt), which fails the build if the code ever clicks in another app, logs to Logcat, writes files, embeds an API key, adds a permission, enables backup, or commits a raw dump.
+- [HardRulesTest](app/src/test/java/com/replymate/HardRulesTest.kt), which fails the build if the code ever clicks in another app, scrolls or gestures anywhere except ChatScroller (and there only as a vertical swipe), logs to Logcat, writes files, embeds an API key, adds a permission, enables backup, or commits a raw dump.
 
 **Tuning a reader from a phone dump:** paste the dump into `src/test/resources/dumps/`, replacing names and message text but keeping positions and IDs. Add a header line saying the names were "replaced", then write a test like [RealLayoutTest](app/src/test/java/com/replymate/reader/RealLayoutTest.kt).
 
@@ -159,6 +171,7 @@ The default model `gemini-3.5-flash-lite` can be changed on the Persona tab with
 | M6 | Gemini + prompt | ✅ |
 | M7 | Suggestion panel + insert | ✅ |
 | M8 | Polish: running/battery check, hard-rule tests, this guide | ✅ |
+| 1.1 | Reply styles (mood / length / vibe) + 2–3 screens of chat history | ✅ |
 
 ### v1 acceptance checklist (spec section 14)
 | Item | How it's covered |
@@ -177,5 +190,5 @@ The default model `gemini-3.5-flash-lite` can be changed on the Persona tab with
 ### Roadmap (not built yet)
 - **v1.1:** per-contact notes; custom tones; "shorter / funnier" buttons.
 - **v1.2:** learn from the suggestions you pick.
-- **v1.3:** group chats; replying to a specific message; **longer context with summarisation**.
+- **v1.3:** group chats; replying to a specific message; summarising even longer histories (2–3 screens is done).
 - **v2:** more apps; OCR fallback; on-device model.

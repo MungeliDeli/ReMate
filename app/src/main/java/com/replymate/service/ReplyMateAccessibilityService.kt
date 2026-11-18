@@ -17,7 +17,14 @@ import com.replymate.BuildConfig
 import com.replymate.Config
 import com.replymate.MainActivity
 import com.replymate.ReplyMateApplication
+import com.replymate.ai.ReplyOptions
 import com.replymate.ai.Suggestion
+import com.replymate.reader.ChatHistory
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import com.replymate.debug.DebugLog
 import com.replymate.debug.DebugType
 import com.replymate.debug.NodeDump
@@ -59,6 +66,11 @@ class ReplyMateAccessibilityService : AccessibilityService() {
 
     /** The chat being answered; memory only, dropped when the panel closes (spec section 9). */
     private var panelConversation: Conversation? = null
+    /** Style picked in the panel for this reply. */
+    private var panelOptions = ReplyOptions()
+    private val scroller by lazy { ChatScroller(this) }
+    /** One history read (scroll up, read, scroll back) at a time. */
+    private val scrollMutex = Mutex()
     private var requestJob: Job? = null
     private var lastOutsideCloseAt = 0L
 
@@ -281,62 +293,134 @@ class ReplyMateAccessibilityService : AccessibilityService() {
             toast("Couldn't open ReplyMate panel")
             return
         }
-        startSuggestionFlow()
+        // Style picker first; the last choice is pre-selected.
+        controller.renderPanel(PanelState.Options(panelOptions))
+        scope?.launch {
+            val last = app.settings.replyOptions.first()
+            panelOptions = last
+            if (overlay?.isPanelOpen == true) overlay?.renderPanel(PanelState.Options(last))
+        }
     }
 
-    /** Read the chat (fresh), then ask Gemini. Used for open, Regenerate and Retry. */
-    private fun startSuggestionFlow() {
+    /**
+     * Read the chat (unless [reread] is false and it was already read while this
+     * panel is open), then ask Gemini with the chosen style.
+     * Used for Suggest, Regenerate and Retry.
+     */
+    private fun startSuggestionFlow(reread: Boolean) {
         val controller = overlay ?: return
         requestJob?.cancel()
-        controller.renderPanel(PanelState.Loading)
-
-        val conversation = readConversation() ?: panelConversation
-        if (conversation == null) {
-            controller.renderPanel(PanelState.Empty)
-            return
-        }
-        panelConversation = conversation
-
         requestJob = scope?.launch {
             val settings = app.settings.settings.first()
-            val result = app.suggester.suggest(settings, conversation, label = "Chat")
+            val cached = panelConversation
+            val conversation = if (!reread && cached != null) cached else {
+                controller.renderPanel(PanelState.Reading(settings.contextScreens))
+                readWithHistory(settings.contextScreens)
+            }
+            if (overlay?.isPanelOpen != true) return@launch
+            if (conversation == null) {
+                controller.renderPanel(PanelState.Empty)
+                return@launch
+            }
+            panelConversation = conversation
+            controller.renderPanel(PanelState.Loading)
+            val options = panelOptions
+            val result = app.suggester.suggest(settings, conversation, label = "Chat", options = options)
             if (overlay?.isPanelOpen == true) {
-                overlay?.renderPanel(PanelState.fromResult(result, settings.exampleList.isNotEmpty()))
+                overlay?.renderPanel(
+                    PanelState.fromResult(result, settings.exampleList.isNotEmpty(), options, conversation.messages.size),
+                )
             }
         }
     }
 
-    /** Reads the open chat; logs it, or auto-captures a node dump on failure (section 12). */
-    private fun readConversation(): Conversation? {
+    /**
+     * Reads the visible chat, then (for [screens] > 1) scrolls up one page at a
+     * time reading each, and always scrolls back down afterwards, even if the
+     * panel is closed midway. Screens are joined without duplicates.
+     * Logs the result; auto-captures a node dump if nothing can be read (section 12).
+     */
+    private suspend fun readWithHistory(screens: Int): Conversation? = scrollMutex.withLock {
         val app = currentApp ?: return null
-        val snap = snapshotChatWindow()
-        if (snap == null) {
+        val screen = overlay?.screenSize() ?: return null
+        val firstSnap = snapshotChatWindow()
+        if (firstSnap == null) {
             DebugLog.add(DebugType.ERROR, "Couldn't read this chat", "No chat window found.")
             return null
         }
-        val screen = overlay?.screenSize() ?: return null
-        val reader = when (app) {
-            SupportedApp.WHATSAPP -> WhatsAppReader
-            SupportedApp.MESSENGER -> MessengerReader
-        }
-        val conversation = try {
-            reader.readConversation(snap, screen.x, screen.y)
-        } catch (e: Exception) {
-            DebugLog.error("Read chat", e)
-            null
-        }
-        if (conversation == null) {
+        val first = readSnapshot(app, firstSnap, screen.x, screen.y)
+        if (first == null) {
             DebugLog.add(DebugType.ERROR, "Couldn't read this chat", "No messages found. A node dump was captured automatically.")
-            captureNodeTree(existing = snap, reason = "no messages read", showToast = false)
+            captureNodeTree(existing = firstSnap, reason = "no messages read", showToast = false)
             return null
         }
+
+        val pages = mutableListOf(first.messages) // oldest screen first
+        var scrolls = 0
+        var method: ChatScroller.Method? = null
+        if (screens > 1) {
+            overlay?.setPanelTouchThrough(true) // let the scroll reach the chat
+            try {
+                for (i in 2..screens) {
+                    val root = chatWindowRoot() ?: break
+                    val used = try {
+                        scroller.scroll(root, older = true, screenWidth = screen.x, screenHeight = screen.y, prefer = method)
+                    } finally {
+                        NodeUtils.recycle(root)
+                    }
+                    if (used == null) break // top of the chat, or can't scroll here
+                    method = used
+                    scrolls++
+                    delay(Config.SCROLL_SETTLE_MS)
+                    val snap = snapshotChatWindow() ?: break
+                    val page = readSnapshot(app, snap, screen.x, screen.y) ?: break
+                    if (page.messages == pages.first()) break // didn't move
+                    pages.add(0, page.messages)
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                DebugLog.error("Scroll for history", e)
+            } finally {
+                withContext(NonCancellable) {
+                    // Swipes can stop a little short, so add one extra on the way back.
+                    val back = if (method == ChatScroller.Method.SWIPE) scrolls + 1 else scrolls
+                    repeat(back) {
+                        val root = chatWindowRoot() ?: return@repeat
+                        try {
+                            scroller.scroll(root, older = false, screenWidth = screen.x, screenHeight = screen.y, prefer = method)
+                        } finally {
+                            NodeUtils.recycle(root)
+                        }
+                        delay(Config.SCROLL_SETTLE_MS / 2)
+                    }
+                    overlay?.setPanelTouchThrough(false)
+                }
+            }
+        }
+
+        val merged = ChatHistory.merge(pages, Config.MAX_CONTEXT_MESSAGES)
+        val conversation = first.copy(messages = merged)
         DebugLog.add(
             DebugType.CONVERSATION,
-            "${app.name.lowercase().replaceFirstChar(Char::uppercase)} · ${conversation.messages.size} messages",
+            "${app.name.lowercase().replaceFirstChar(Char::uppercase)} · ${merged.size} messages " +
+                "(${pages.size} screen${if (pages.size > 1) "s" else ""}${method?.let { ", scrolled by ${it.name.lowercase()}" } ?: ""})",
             conversation.describe(),
             conversation = conversation,
         )
         return conversation
+    }
+
+    private fun readSnapshot(app: SupportedApp, snap: ScreenNode, width: Int, height: Int): Conversation? {
+        val reader = when (app) {
+            SupportedApp.WHATSAPP -> WhatsAppReader
+            SupportedApp.MESSENGER -> MessengerReader
+        }
+        return try {
+            reader.readConversation(snap, width, height)
+        } catch (e: Exception) {
+            DebugLog.error("Read chat", e)
+            null
+        }
     }
 
     /** Spec F6: put the text in the composer; clipboard if that fails. Never sends. */
@@ -374,6 +458,16 @@ class ReplyMateAccessibilityService : AccessibilityService() {
     }
 
     private val panelCallbacks = object : SuggestionPanelView.Callbacks {
+        override fun onSuggest(options: ReplyOptions) {
+            panelOptions = options
+            app.appScope.launch { app.settings.saveReplyOptions(options) }
+            startSuggestionFlow(reread = true)
+        }
+
+        override fun onShowOptions() {
+            overlay?.renderPanel(PanelState.Options(panelOptions))
+        }
+
         override fun onPick(suggestion: Suggestion) = insertSuggestion(suggestion)
 
         override fun onCopy(suggestion: Suggestion) {
@@ -381,12 +475,13 @@ class ReplyMateAccessibilityService : AccessibilityService() {
             toast("Copied")
         }
 
-        override fun onRegenerate() = startSuggestionFlow()
+        // Reuse the chat already read while this panel is open: no second scroll.
+        override fun onRegenerate() = startSuggestionFlow(reread = panelConversation == null)
 
         override fun onClose() = closePanel()
 
         override fun onAction(action: PanelAction) = when (action) {
-            PanelAction.RETRY -> startSuggestionFlow()
+            PanelAction.RETRY -> startSuggestionFlow(reread = panelConversation == null)
             PanelAction.OPEN_SETTINGS -> openApp(MainActivity.TAB_PERSONA)
         }
 

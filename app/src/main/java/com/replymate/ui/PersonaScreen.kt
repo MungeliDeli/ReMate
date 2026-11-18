@@ -19,6 +19,9 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -189,6 +192,8 @@ private fun PersonaForm(
 
         ReplyLanguagePicker(selected = s.replyLanguage, onSelect = { onChange(s.copy(replyLanguage = it)) })
 
+        ContextScreensPicker(selected = s.contextScreens, onSelect = { onChange(s.copy(contextScreens = it)) })
+
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         Text("Gemini", style = MaterialTheme.typography.titleMedium)
 
@@ -315,6 +320,29 @@ private fun SuggestionCard(sug: Suggestion) {
                 )
             }
             Text(sug.text, fontSize = 15.sp, lineHeight = 20.sp)
+        }
+    }
+}
+
+/** How much of the chat to read: ReplyMate scrolls up and back down for 2-3 screens. */
+@Composable
+private fun ContextScreensPicker(selected: Int, onSelect: (Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Chat context", style = MaterialTheme.typography.bodyLarge)
+        Text(
+            "How much of the chat to read. For 2-3 screens ReplyMate scrolls the chat up and back down (a few seconds).",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            val labels = listOf("This screen", "2 screens", "3 screens")
+            labels.forEachIndexed { i, label ->
+                SegmentedButton(
+                    selected = selected == i + 1,
+                    onClick = { onSelect(i + 1) },
+                    shape = SegmentedButtonDefaults.itemShape(index = i, count = labels.size),
+                ) { Text(label, maxLines = 1) }
+            }
         }
     }
 }

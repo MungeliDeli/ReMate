@@ -145,6 +145,20 @@ class OverlayController(
         if (view.isAttachedToWindow) runCatching { wm.updateViewLayout(view, lp) }
     }
 
+    /**
+     * While ReplyMate scrolls the chat, the panel must let touches through so
+     * the scroll swipe reaches the chat underneath (FLAG_NOT_TOUCHABLE).
+     */
+    fun setPanelTouchThrough(through: Boolean) {
+        val view = panel ?: return
+        val lp = panelParams ?: return
+        val flags = if (through) lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        else lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        if (flags == lp.flags) return
+        lp.flags = flags
+        if (view.isAttachedToWindow) runCatching { wm.updateViewLayout(view, lp) }
+    }
+
     fun closePanel() {
         val view = panel ?: return
         runCatching { wm.removeViewImmediate(view) }
