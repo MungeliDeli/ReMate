@@ -67,7 +67,7 @@ private fun ReplyMateApp() {
         Box(Modifier.fillMaxSize().padding(padding)) {
             when (selected) {
                 Tab.SETUP -> SetupScreen(app.settings, onOpenPersona = { selected = Tab.PERSONA })
-                Tab.PERSONA -> PersonaScreen(app.settings, app.appScope)
+                Tab.PERSONA -> PersonaScreen(app.settings, app.appScope, app.suggester)
                 Tab.DEBUG -> DebugScreen()
             }
         }

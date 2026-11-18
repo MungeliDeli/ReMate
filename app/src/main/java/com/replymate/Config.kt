@@ -18,6 +18,17 @@ object Config {
     /** What the UI recommends. */
     const val RECOMMENDED_EXAMPLES = "15–20"
 
+    // --- Gemini (spec F9) ---
+    const val GEMINI_BASE_URL = "https://generativelanguage.googleapis.com"
+    const val GEMINI_CONNECT_TIMEOUT_S = 10L
+    const val GEMINI_READ_TIMEOUT_S = 20L
+    const val GEMINI_RETRY_DELAY_MS = 2_000L
+    const val GEMINI_TEMPERATURE = 0.9
+    const val GEMINI_MAX_OUTPUT_TOKENS = 400
+    /** Used if the model rejects MINIMAL thinking and LOW is used instead (thinking tokens count as output). */
+    const val GEMINI_MAX_OUTPUT_TOKENS_WITH_THINKING = 1024
+    const val SUGGESTION_COUNT = 3
+
     /** Delay before persona edits are written to storage. */
     const val AUTOSAVE_DEBOUNCE_MS = 400L
 

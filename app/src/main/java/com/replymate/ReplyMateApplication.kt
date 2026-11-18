@@ -1,6 +1,8 @@
 package com.replymate
 
 import android.app.Application
+import com.replymate.ai.GeminiClient
+import com.replymate.ai.ReplySuggester
 import com.replymate.data.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -11,4 +13,7 @@ class ReplyMateApplication : Application() {
     val appScope = CoroutineScope(SupervisorJob())
 
     val settings: SettingsRepository by lazy { SettingsRepository(this) }
+
+    /** One HTTP client for the whole app. */
+    val suggester: ReplySuggester by lazy { ReplySuggester(GeminiClient()) }
 }

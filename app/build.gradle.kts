@@ -2,6 +2,7 @@ plugins {
     // AGP 9 compiles Kotlin itself ("built-in Kotlin"), so no kotlin-android plugin here.
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
@@ -53,6 +54,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.activity.compose)
 
     implementation(platform(libs.androidx.compose.bom))
@@ -63,4 +66,5 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)
+    testImplementation(libs.okhttp.mockwebserver)
 }

@@ -12,9 +12,9 @@ Personal use only: it's installed as a sideloaded APK and is not on Google Play.
 | M2 | Settings & persona | ✅ Done |
 | M3 | Accessibility service + bubble | ✅ Done |
 | M4 | Debug screen & node dump | ✅ Done |
-| M5 | Chat readers | ✅ Built (being tuned on the phone) |
-| M6 | Gemini + prompt | ⏳ Next |
-| M7 | Suggestion panel + insert | — |
+| M5 | Chat readers | ✅ Done |
+| M6 | Gemini + prompt | ✅ Done |
+| M7 | Suggestion panel + insert | ⏳ Next |
 | M8 | Polish | — |
 
 ### What M1 contains
@@ -142,3 +142,37 @@ Kotlin · Jetpack Compose + Material 3 · AGP 9.4.1 (built-in Kotlin) · Kotlin 
 - Nothing is ever sent automatically. No code path presses Send.
 - No chat content is stored on disk.
 - The Gemini API key is entered inside the app. It is never committed to this repo.
+
+### What M6 contains
+- **Redactor** ([Redactor.kt](app/src/main/java/com/replymate/ai/Redactor.kt)): before anything leaves the phone, it replaces:
+  - emails with `[EMAIL]`;
+  - links (http(s), www., and common domains such as .com and .co.zm) with `[LINK]`;
+  - anything with 7 or more digits, allowing a leading +, spaces and dashes, with `[PHONE]` (for example `+260 97 123 4567`, `0971234567`, `097-123-4567`);
+  - a plain run of 6 digits (codes, PINs) with `[NUMBER]`.
+
+  Times, prices, years and short numbers are left alone.
+- **PromptBuilder** ([PromptBuilder.kt](app/src/main/java/com/replymate/ai/PromptBuilder.kt)): builds the system instruction and conversation block exactly as in spec 8.2 and 8.3. Empty persona sections are left out. The other person is called "Them", or, with "Share first name with AI" on, only their redacted first name is used. If you sent the last message, it asks for follow-ups.
+- **GeminiClient** ([GeminiClient.kt](app/src/main/java/com/replymate/ai/GeminiClient.kt)): plain REST with OkHttp, checked against ai.google.dev on 2026-11-18.
+  - It calls `POST /v1beta/models/{model}:generateContent` and sends the key only in the `x-goog-api-key` header.
+  - **Changed from the spec:** the JSON output schema goes in `responseJsonSchema`, because the spec's `responseSchema` is now documented as internal.
+  - **Thinking:** it asks for `thinkingLevel: MINIMAL`, the cheapest and fastest level and the default for `gemini-3.5-flash-lite`. If a model rejects that level, it retries with `LOW`, then with no thinking setting.
+  - **Timeouts:** 10 s to connect, 20 s to read.
+  - **Retries:** one retry after 2 s on no connection, 429, 500 or 503. Closing the panel (M7) cancels the call.
+  - **Errors** show the messages from spec section 12. Gemini answers a wrong key with a 400 error ("API key not valid"); that also shows "Your API key was rejected".
+- **Response parsing** ([ResponseParser.kt](app/src/main/java/com/replymate/ai/ResponseParser.kt)): reads the JSON answer and takes the first 3 suggestions. If the answer isn't JSON, it falls back to one suggestion per line. A blocked prompt or safety stop shows "Gemini declined to suggest a reply for this chat".
+- **Persona → Test:** sends a fixed sample chat with your *current* persona (even unsaved edits) and shows the 3 suggestions, each with its tone and the time taken.
+- **Debug tab:** every call adds a **Request** entry (the full prompt, after redaction) and a **Response** or **Error** entry (HTTP status, time in ms, raw JSON). The API key is never in the prompt, and is masked as `****` if it ever appears.
+- **Free tier note:** `gemini-3.5-flash-lite` is free of charge on the free tier, but on the free tier Google may use what you send to improve its products. The Redactor reduces what is shared, and turning on billing changes this.
+
+**Test M6 on the phone:**
+1. Install the new APK. On **Persona**, paste your **real** Gemini API key (from aistudio.google.com/apikey) and check your example messages are filled in.
+2. Scroll to **Test** and tap **Test with sample chat**. Within a few seconds you should see 3 suggestions (CASUAL / WARM / SHORT) that sound like you.
+3. Open **Debug** and check:
+   - the **Request** entry shows `call me on [PHONE]`, not the number;
+   - the request and response don't contain your API key.
+4. Error checks:
+   - change one character of the key and tap Test: "Your API key was rejected";
+   - switch on airplane mode and tap Test: after a short pause, "No connection. Try again.";
+   - set Model ID to `gemini-nope` and tap Test: "Model not found…";
+   - afterwards, tap **Reset** on the Model ID and fix the key.
+5. Try `gemini-3.8-flash` as the Model ID to compare quality. It should still work: it doesn't accept MINIMAL thinking, so the client falls back to LOW automatically.

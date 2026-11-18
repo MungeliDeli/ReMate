@@ -38,6 +38,18 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.replymate.Config
+import com.replymate.ai.GeminiResult
+import com.replymate.ai.ReplySuggester
+import com.replymate.ai.SampleChat
+import com.replymate.ai.Suggestion
+import com.replymate.reader.Sender
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.unit.sp
 import com.replymate.data.AppSettings
 import com.replymate.data.ReplyLanguage
 import com.replymate.data.SettingsRepository
@@ -52,7 +64,7 @@ import kotlinx.coroutines.launch
  * saved automatically shortly after typing stops, and again when leaving the tab.
  */
 @Composable
-fun PersonaScreen(repo: SettingsRepository, appScope: CoroutineScope) {
+fun PersonaScreen(repo: SettingsRepository, appScope: CoroutineScope, suggester: ReplySuggester) {
     var draft by remember { mutableStateOf<AppSettings?>(null) }
     var saved by remember { mutableStateOf<AppSettings?>(null) }
 
@@ -90,11 +102,17 @@ fun PersonaScreen(repo: SettingsRepository, appScope: CoroutineScope) {
         s = s,
         isSaved = s == saved,
         onChange = { draft = it },
+        testSection = { TestSection(s, suggester) },
     )
 }
 
 @Composable
-private fun PersonaForm(s: AppSettings, isSaved: Boolean, onChange: (AppSettings) -> Unit) {
+private fun PersonaForm(
+    s: AppSettings,
+    isSaved: Boolean,
+    onChange: (AppSettings) -> Unit,
+    testSection: @Composable () -> Unit,
+) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -214,6 +232,89 @@ private fun PersonaForm(s: AppSettings, isSaved: Boolean, onChange: (AppSettings
                 )
             }
             Switch(checked = s.shareFirstName, onCheckedChange = { onChange(s.copy(shareFirstName = it)) })
+        }
+
+        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        testSection()
+    }
+}
+
+private sealed interface TestState {
+    data object Idle : TestState
+    data object Loading : TestState
+    data class Done(val suggestions: List<Suggestion>, val latencyMs: Long) : TestState
+    data class Failed(val message: String) : TestState
+}
+
+/**
+ * Persona "Test" button (spec F8): sends a fixed sample chat with the current
+ * (even unsaved) persona and shows the 3 results. Verifies key + persona.
+ */
+@Composable
+private fun TestSection(s: AppSettings, suggester: ReplySuggester) {
+    val scope = rememberCoroutineScope()
+    var state by remember { mutableStateOf<TestState>(TestState.Idle) }
+
+    Text("Test", style = MaterialTheme.typography.titleMedium)
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text("Sample chat", style = MaterialTheme.typography.labelMedium)
+            SampleChat.conversation.messages.forEach { m ->
+                Text(
+                    "${if (m.sender == Sender.ME) "Me" else "Them"}: ${m.text}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+    }
+    if (s.exampleList.isEmpty()) {
+        Text(
+            "Add example messages for better replies.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    Button(
+        enabled = state != TestState.Loading,
+        onClick = {
+            state = TestState.Loading
+            scope.launch {
+                state = when (val r = suggester.suggest(s, SampleChat.conversation, label = "Persona test")) {
+                    is GeminiResult.Success -> TestState.Done(r.suggestions, r.latencyMs)
+                    is GeminiResult.Failure -> TestState.Failed(r.error.userMessage)
+                }
+            }
+        },
+    ) { Text(if (state == TestState.Loading) "Thinking…" else "Test with sample chat") }
+
+    when (val st = state) {
+        TestState.Idle -> Unit
+        TestState.Loading -> CircularProgressIndicator(Modifier.padding(8.dp))
+        is TestState.Failed -> Text(st.message, color = MaterialTheme.colorScheme.error)
+        is TestState.Done -> {
+            Text(
+                "${st.suggestions.size} suggestions in ${st.latencyMs} ms",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            st.suggestions.forEach { SuggestionCard(it) }
+        }
+    }
+}
+
+@Composable
+private fun SuggestionCard(sug: Suggestion) {
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(6.dp)) {
+                Text(
+                    sug.tone.uppercase(),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+            Text(sug.text, fontSize = 15.sp, lineHeight = 20.sp)
         }
     }
 }
