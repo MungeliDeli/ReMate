@@ -40,19 +40,29 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.replymate.Config
 import com.replymate.data.AppSettings
 import com.replymate.data.SettingsRepository
+import com.replymate.service.ServiceState
 import com.replymate.service.ServiceStatus
+import android.os.PowerManager
 
 @Composable
 fun SetupScreen(repo: SettingsRepository, onOpenPersona: () -> Unit) {
     val context = LocalContext.current
     val settings by repo.settings.collectAsStateWithLifecycle(initialValue = AppSettings())
 
-    // Re-check the service every time the owner comes back from system settings.
-    var serviceOn by remember { mutableStateOf(ServiceStatus.isEnabled(context)) }
+    val snapshot by ServiceState.snapshot.collectAsStateWithLifecycle()
+
+    // Re-check every time the owner comes back from system settings.
+    var enabled by remember { mutableStateOf(ServiceStatus.isEnabled(context)) }
+    var batteryUnrestricted by remember { mutableStateOf(isBatteryUnrestricted(context)) }
     LifecycleResumeEffect(Unit) {
-        serviceOn = ServiceStatus.isEnabled(context)
+        enabled = ServiceStatus.isEnabled(context)
+        batteryUnrestricted = isBatteryUnrestricted(context)
         onPauseOrDispose { }
     }
+    // Spec section 12 "Service killed by system": switched on in Settings is not
+    // enough; it must also be running.
+    val serviceOn = enabled && snapshot.running
+    val serviceStuck = enabled && !snapshot.running
 
     val doneCount = listOf(settings.hasApiKey, settings.personaReady, serviceOn).count { it }
 
@@ -102,18 +112,26 @@ fun SetupScreen(repo: SettingsRepository, onOpenPersona: () -> Unit) {
         ChecklistItem(
             done = serviceOn,
             title = "3. Accessibility service",
-            body = if (serviceOn) "ReplyMate is switched on." else
-                "Lets ReplyMate show its button in WhatsApp and Messenger and read the open chat " +
-                    "when you tap it. Find ReplyMate in the list and switch it on.",
+            body = when {
+                serviceOn -> "ReplyMate is switched on and running."
+                serviceStuck -> "Switched on, but not running. Android probably stopped it to save battery. " +
+                    "Turn ReplyMate off and on again in Accessibility, and set its battery use to Unrestricted (below)."
+                else -> "Lets ReplyMate show its button in WhatsApp and Messenger and read the open chat " +
+                    "when you tap it. Find ReplyMate in the list and switch it on."
+            },
         ) {
             if (!serviceOn) {
-                Button(onClick = { openAccessibilitySettings(context) }) { Text("Enable service") }
+                Button(onClick = { openAccessibilitySettings(context) }) {
+                    Text(if (serviceStuck) "Open Accessibility" else "Enable service")
+                }
             }
         }
 
-        if (!serviceOn && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        if (!enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             RestrictedSettingsHelp(onOpenAppInfo = { openAppInfo(context) })
         }
+
+        BatteryTip(unrestricted = batteryUnrestricted, onOpenAppInfo = { openAppInfo(context) })
     }
 }
 
@@ -164,6 +182,51 @@ private fun RestrictedSettingsHelp(onOpenAppInfo: () -> Unit) {
             OutlinedButton(onClick = onOpenAppInfo) { Text("Open App info") }
         }
     }
+}
+
+/**
+ * Spec section 12: if Android kills the service, the bubble disappears. Setting
+ * battery use to Unrestricted prevents that. Shown as a tip, not a checklist step.
+ */
+@Composable
+private fun BatteryTip(unrestricted: Boolean, onOpenAppInfo: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (unrestricted) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surfaceContainer,
+        ),
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
+            Icon(
+                imageVector = if (unrestricted) Icons.Filled.CheckCircle else Icons.Outlined.Info,
+                contentDescription = if (unrestricted) "Done" else "Tip",
+                tint = if (unrestricted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp),
+            )
+            Spacer(Modifier.size(12.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Tip: keep ReplyMate running", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium)
+                if (unrestricted) {
+                    Text("Battery use is Unrestricted, so Android won't stop ReplyMate.", style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    Text(
+                        "If the bubble sometimes stops appearing, Android is stopping ReplyMate to save battery.\n" +
+                            "1. Tap \"Open App info\".\n" +
+                            "2. Open \"App battery usage\" (or \"Battery\").\n" +
+                            "3. Choose \"Unrestricted\" (or turn on \"Allow background usage\").",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    OutlinedButton(onClick = onOpenAppInfo) { Text("Open App info") }
+                }
+            }
+        }
+    }
+}
+
+private fun isBatteryUnrestricted(context: Context): Boolean {
+    val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    return pm.isIgnoringBatteryOptimizations(context.packageName)
 }
 
 private fun openAccessibilitySettings(context: Context) {

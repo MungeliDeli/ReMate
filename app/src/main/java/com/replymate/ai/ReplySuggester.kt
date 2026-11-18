@@ -11,7 +11,7 @@ import com.replymate.service.SupportedApp
 /**
  * Conversation + persona -> 3 suggestions. Redacts and builds the prompt,
  * calls Gemini, and records request/response in the Debug log (spec section 10).
- * Used by the Persona "Test" button now and by the bubble panel in M7.
+ * Used by the Persona "Test" button and by the bubble's suggestion panel.
  */
 class ReplySuggester(private val client: GeminiClient) {
 
