@@ -5,7 +5,7 @@ A personal Android tool. When a WhatsApp or Messenger chat is open, a small teal
 - **Personal use only:** it's installed as a sideloaded APK and is not on Google Play.
 - **Phones:** Android 8.0+ (API 26+).
 - **Apps:** WhatsApp, WhatsApp Business, Messenger.
-- **Version:** 1.1.0. This is spec v1 plus reply styles and up to 3 screens of chat history.
+- **Version:** 1.1.1. This is spec v1 plus reply styles and up to 3 screens of chat history.
 
 ---
 
@@ -134,7 +134,7 @@ SettingsRepository (DataStore) · DebugLog (memory) · MainActivity: Setup / Per
 |---|---|---|
 | Config | [Config.kt](app/src/main/java/com/replymate/Config.kt) | **Every tunable number**: sender split, max messages, timeouts, model ID… |
 | Service and detection | [service/](app/src/main/java/com/replymate/service/) | A chat screen means a supported app **plus** a message box in the lower part of the screen. Events are debounced. While the bubble shows, a once-a-second check of which app is in front hides it when you leave. |
-| History | [service/ChatScroller.kt](app/src/main/java/com/replymate/service/ChatScroller.kt), [reader/ChatHistory.kt](app/src/main/java/com/replymate/reader/ChatHistory.kt), [reader/SwipePlan.kt](app/src/main/java/com/replymate/reader/SwipePlan.kt) | Read a screen, scroll one page up (WhatsApp: `ACTION_SCROLL_BACKWARD`; Messenger: a vertical swipe that holds still at the end so the list doesn't fling), read again, then scroll back. While scrolling, the panel lets touches pass through. Screens are joined by removing the overlap. |
+| History | [service/ChatScroller.kt](app/src/main/java/com/replymate/service/ChatScroller.kt), [reader/ChatHistory.kt](app/src/main/java/com/replymate/reader/ChatHistory.kt), [reader/SwipePlan.kt](app/src/main/java/com/replymate/reader/SwipePlan.kt) | Read a screen, scroll one page up (WhatsApp: `ACTION_SCROLL_BACKWARD`; Messenger: a vertical swipe that holds still at the end so the list doesn't fling), read again, then scroll back. While scrolling, the panel lets touches pass through **and stops watching for outside taps**; otherwise Messenger's swipe would count as "tapped outside" and close the panel (fixed in 1.1.1). Screens are joined by removing the overlap. |
 | Reply styles | [ai/ReplyOptions.kt](app/src/main/java/com/replymate/ai/ReplyOptions.kt) | Mood (up to 2) / Length / Vibe. The prompt swaps the casual/warm/short rule for the requested style; the length choice replaces the "max 3 sentences" rule; the persona sections are unchanged. |
 | Readers | [reader/](app/src/main/java/com/replymate/reader/) | Work on a frozen `ScreenNode` copy of the screen, so they're unit-testable. **WhatsApp:** `message_text` IDs; delivery ticks (`status`) mean ME, otherwise position. **Messenger:** parses the "Name, message, double tap to see…" accessibility text; the name decides the sender; quotes, headers and receipts are dropped; position is the fallback. |
 | AI | [ai/](app/src/main/java/com/replymate/ai/) | Redactor, PromptBuilder (spec 8.2/8.3), GeminiClient (REST, see below), ResponseParser, ReplySuggester (logs to Debug, masks the key). |

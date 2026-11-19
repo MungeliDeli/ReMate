@@ -73,6 +73,10 @@ class ReplyMateAccessibilityService : AccessibilityService() {
     private val scrollMutex = Mutex()
     private var requestJob: Job? = null
     private var lastOutsideCloseAt = 0L
+    /** True while scrolling/reading history: our own swipe must not close the panel. */
+    private var readingHistory = false
+    /** Screens read so far in the current history read (for the Debug log if cut short). */
+    private var screensReadSoFar = 0
 
     private val app: ReplyMateApplication get() = application as ReplyMateApplication
 
@@ -125,6 +129,9 @@ class ReplyMateAccessibilityService : AccessibilityService() {
         }
         if (pkg != null) ServiceState.update { it.copy(lastPackage = pkg) }
         if (controller.isPanelOpen) controller.setPanelBottomOffset(panelBottomOffset())
+        // While we scroll the chat ourselves, the app may redraw and the composer can be
+        // missed for a moment. Still in the chat app = still in the chat.
+        if (detected == null && readingHistory && AppDetector.appFor(pkg) != null) return
         setChatApp(detected)
     }
 
@@ -151,7 +158,7 @@ class ReplyMateAccessibilityService : AccessibilityService() {
             controller.showBubble()
             scheduleForegroundCheck()
         } else {
-            closePanel() // spec 2.3: leaving the chat hides button and panel
+            closePanel("left the chat screen") // spec 2.3: leaving the chat hides button and panel
             controller.hideBubble()
         }
     }
@@ -279,7 +286,7 @@ class ReplyMateAccessibilityService : AccessibilityService() {
     private fun onBubbleTapped() {
         val controller = overlay ?: return
         if (controller.isPanelOpen) {
-            closePanel()
+            closePanel("bubble tapped")
             return
         }
         // The same tap already closed the panel as an "outside" touch: don't reopen.
@@ -358,7 +365,9 @@ class ReplyMateAccessibilityService : AccessibilityService() {
         val pages = mutableListOf(first.messages) // oldest screen first
         var scrolls = 0
         var method: ChatScroller.Method? = null
+        screensReadSoFar = 1
         if (screens > 1) {
+            readingHistory = true
             overlay?.setPanelTouchThrough(true) // let the scroll reach the chat
             try {
                 for (i in 2..screens) {
@@ -376,6 +385,7 @@ class ReplyMateAccessibilityService : AccessibilityService() {
                     val page = readSnapshot(app, snap, screen.x, screen.y) ?: break
                     if (page.messages == pages.first()) break // didn't move
                     pages.add(0, page.messages)
+                    screensReadSoFar = pages.size
                 }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
@@ -394,6 +404,7 @@ class ReplyMateAccessibilityService : AccessibilityService() {
                         delay(Config.SCROLL_SETTLE_MS / 2)
                     }
                     overlay?.setPanelTouchThrough(false)
+                    readingHistory = false
                 }
             }
         }
@@ -439,10 +450,18 @@ class ReplyMateAccessibilityService : AccessibilityService() {
             DebugLog.add(DebugType.INFO, "Insert failed: copied ${s.tone} suggestion to clipboard")
             toast("Copied — paste it in the chat")
         }
-        closePanel()
+        closePanel("suggestion picked")
     }
 
-    private fun closePanel() {
+    private fun closePanel(reason: String = "closed") {
+        if (requestJob?.isActive == true) {
+            // Make it visible in Debug when work is cut short (e.g. the panel closed while reading).
+            DebugLog.add(
+                DebugType.INFO,
+                "Panel closed while working: $reason",
+                if (readingHistory) "Cancelled while reading chat history after $screensReadSoFar screen(s); the chat was scrolled back." else "",
+            )
+        }
         requestJob?.cancel() // spec F9: cancel the in-flight request when the panel closes
         requestJob = null
         panelConversation = null
@@ -450,7 +469,7 @@ class ReplyMateAccessibilityService : AccessibilityService() {
     }
 
     private fun openApp(tab: String) {
-        closePanel()
+        closePanel("opened ReplyMate app")
         val intent = Intent(this, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra(MainActivity.EXTRA_OPEN_TAB, tab)
@@ -478,7 +497,7 @@ class ReplyMateAccessibilityService : AccessibilityService() {
         // Reuse the chat already read while this panel is open: no second scroll.
         override fun onRegenerate() = startSuggestionFlow(reread = panelConversation == null)
 
-        override fun onClose() = closePanel()
+        override fun onClose() = closePanel("close button")
 
         override fun onAction(action: PanelAction) = when (action) {
             PanelAction.RETRY -> startSuggestionFlow(reread = panelConversation == null)
@@ -490,8 +509,10 @@ class ReplyMateAccessibilityService : AccessibilityService() {
         override fun onCapture() = captureNodeTree()
 
         override fun onOutsideTouch() {
+            // Our own scroll swipe lands outside the panel: never treat it as the owner tapping away.
+            if (readingHistory) return
             lastOutsideCloseAt = SystemClock.uptimeMillis()
-            closePanel()
+            closePanel("tapped outside")
         }
     }
 
@@ -501,7 +522,7 @@ class ReplyMateAccessibilityService : AccessibilityService() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        closePanel()
+        closePanel("screen rotated or theme changed")
         overlay?.onScreenChanged()
     }
 
@@ -509,7 +530,7 @@ class ReplyMateAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
-        closePanel()
+        closePanel("service stopped")
         ServiceState.reset()
         DebugLog.clear() // spec section 9: debug entries are cleared on service stop
         overlay?.destroy()

@@ -147,13 +147,13 @@ class OverlayController(
 
     /**
      * While ReplyMate scrolls the chat, the panel must let touches through so
-     * the scroll swipe reaches the chat underneath (FLAG_NOT_TOUCHABLE).
+     * the scroll swipe reaches the chat underneath, and must NOT treat that
+     * swipe as an "outside tap" (which would close the panel and cancel the read).
      */
     fun setPanelTouchThrough(through: Boolean) {
         val view = panel ?: return
         val lp = panelParams ?: return
-        val flags = if (through) lp.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-        else lp.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+        val flags = panelFlags(lp.flags, through)
         if (flags == lp.flags) return
         lp.flags = flags
         if (view.isAttachedToWindow) runCatching { wm.updateViewLayout(view, lp) }
@@ -221,4 +221,16 @@ class OverlayController(
         }
 
     fun screenHeight(): Int = screenSize().y
+
+    companion object {
+        /**
+         * Normal: touchable + watch outside taps (tap outside closes the panel).
+         * Touch-through (while scrolling): not touchable and not watching outside.
+         */
+        fun panelFlags(current: Int, through: Boolean): Int {
+            val touchable = WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            val watch = WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+            return if (through) (current or touchable) and watch.inv() else (current and touchable.inv()) or watch
+        }
+    }
 }
