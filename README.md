@@ -5,7 +5,7 @@ A personal Android tool. When a WhatsApp or Messenger chat is open, a small teal
 - **Personal use only:** it's installed as a sideloaded APK and is not on Google Play.
 - **Phones:** Android 8.0+ (API 26+).
 - **Apps:** WhatsApp, WhatsApp Business, Messenger.
-- **Version:** 1.1.1. This is spec v1 plus reply styles and up to 3 screens of chat history.
+- **Version:** 1.2.0. This is spec v1 plus reply styles, up to 3 screens of chat history, switchable personas, notes per person and quick tweaks.
 
 ---
 
@@ -24,8 +24,13 @@ Open **ReplyMate**. The **Setup** tab shows a checklist; each item gets a green 
 1. **Gemini API key**
    - Tap **Get a key** (opens aistudio.google.com/apikey) and create a free key.
    - Tap **Add API key**, which takes you to the Persona tab, and paste the key into **Gemini API key**.
-2. **Your persona** (Persona tab). Fill in:
-   - **Your first name.**
+2. **Your persona** (Persona tab). You can keep **several personas**, for example "Calm Closer" and "Playful Planner":
+   - pick which one to edit under **Editing**;
+   - use **New / Duplicate / Delete** to manage them;
+   - **Make default** sets the one used unless a person or the panel picks another.
+
+   Your first name, API key, model, sharing and chat context are shared by all personas. For each persona, fill in:
+   - **Persona name.**
    - **About me:** age range, vibe, interests (500 characters max).
    - **Writing style:** e.g. "short messages, lowercase, light slang, occasional emoji".
    - **Example messages**, one per line. **This matters most.** Paste 15–20 messages you've really sent (max 40). The tick needs your name and at least 5.
@@ -43,13 +48,13 @@ When all three items have ticks, the screen says **"All set"**.
 ## 3. Daily use
 
 1. Open a chat in WhatsApp or Messenger. The **bubble** fades in at the screen edge. It only shows on chat screens, not the chat list, Status or Settings.
-2. **Tap the bubble.** A panel slides up with **style options**, and your last choice is pre-selected. You can combine them:
+2. **Tap the bubble.** A panel slides up showing who you're chatting with, your **note** about them (**Add a note / Edit note** opens the People tab with their name filled in), and **persona chips** if you have more than one persona. Below that are the **style options**, pre-filled from this person's saved setup or your last choice. You can combine them:
    - **Mood** (up to 2): Light · Flirty · Romantic · Sentimental · Comforting (for when they're sad)
    - **Length:** Short · Medium · Long
    - **Vibe:** Chilled · Funny · Playful · Serious
 
-   Leave everything unpicked for the classic casual / warm / short trio. Then tap **Suggest**. ReplyMate reads the chat (scrolling up 1–2 screens and back, depending on Chat context), thinks, and shows **3 suggestions**. They all follow your style but each takes a different angle (e.g. TEASING / SMOOTH / BOLD). Your persona stays the same; the style only changes the mood of this reply.
-3. **Tap a suggestion** and it's placed in the message box. Edit it if you want, then **press Send yourself**. **Long-press** a suggestion to copy it instead.
+   **Remember for <name>** saves this persona and style for this person, so they're pre-selected next time; turning it off clears them but keeps the note. Leave everything unpicked for the classic casual / warm / short trio. Then tap **Suggest**. ReplyMate reads the chat (scrolling up 1–2 screens and back, depending on Chat context), thinks, and shows **3 suggestions**. They all follow your style but each takes a different angle (e.g. TEASING / SMOOTH / BOLD). Your persona stays the same; the style only changes the mood of this reply.
+3. **Tap a suggestion** and it's placed in the message box. **Tweak ▾** on a card opens **Shorter · Funnier · Bolder · Softer · + Emoji**; tapping one rewrites that reply into 3 new versions. Edit it if you want, then **press Send yourself**. **Long-press** a suggestion to copy it instead.
 4. Under the suggestions, **Change style** takes you back to the options. In the panel header:
    - **↻ Regenerate** gets 3 new suggestions with the same style, using the chat already read (no second scroll);
    - **✕** closes the panel;
@@ -57,6 +62,14 @@ When all three items have ticks, the screen says **"All set"**.
 
    Tapping outside the panel also closes it.
 5. **Drag the bubble** anywhere; it snaps to the nearest side and remembers where you left it. **Long-press the bubble** to capture the screen for the Debug tab.
+
+### The People tab
+- Lists everyone you've set up. Tap someone to edit:
+  - **name:** must match the chat title exactly (capitals and spaces don't matter);
+  - **note:** e.g. "my crush, we met at uni, keep it flirty but respectful". It's sent to Gemini through the same redaction as the chat, and Gemini is told not to quote it;
+  - **persona** for them;
+  - **default style** for them.
+- **Add person** adds someone by hand, but the easiest way is the panel's **Add a note** while you're in their chat.
 
 ## 4. When something goes wrong
 
@@ -97,7 +110,7 @@ When all three items have ticks, the screen says **"All set"**.
   - 6-digit codes become `[NUMBER]`.
 
   The other person is called "Them", unless you switch on **Share first name with AI**; then only their first name is sent.
-- **No chat content is stored on disk.** The chat, prompt and response live in memory and are dropped when the panel closes. The Debug log is memory-only and cleared when the service stops or when you tap **Clear**. Nothing is written to Logcat.
+- **No chat content is stored on disk.** What *is* stored (app-private, no backup): your settings, personas, and the People entries you create (contact name as the chat shows it, your note, persona and style). The chat, prompt and response live in memory and are dropped when the panel closes. The Debug log is memory-only and cleared when the service stops or when you tap **Clear**. Nothing is written to Logcat.
 - **The API key** is stored only on the phone (app-private DataStore, excluded from backups). It is never in this repo, never in the Debug log (masked as `****`), and never in a URL.
 - **Gemini free tier:** Google may use what you send to improve its products. Redaction limits what it sees, and turning on billing changes this.
 - **This repository is public.** Never commit a raw node dump from the phone. Test fixtures keep only the layout, with names and text replaced; a unit test checks this.
@@ -135,6 +148,8 @@ SettingsRepository (DataStore) · DebugLog (memory) · MainActivity: Setup / Per
 | Config | [Config.kt](app/src/main/java/com/replymate/Config.kt) | **Every tunable number**: sender split, max messages, timeouts, model ID… |
 | Service and detection | [service/](app/src/main/java/com/replymate/service/) | A chat screen means a supported app **plus** a message box in the lower part of the screen. Events are debounced. While the bubble shows, a once-a-second check of which app is in front hides it when you leave. |
 | History | [service/ChatScroller.kt](app/src/main/java/com/replymate/service/ChatScroller.kt), [reader/ChatHistory.kt](app/src/main/java/com/replymate/reader/ChatHistory.kt), [reader/SwipePlan.kt](app/src/main/java/com/replymate/reader/SwipePlan.kt) | Read a screen, scroll one page up (WhatsApp: `ACTION_SCROLL_BACKWARD`; Messenger: a vertical swipe that holds still at the end so the list doesn't fling), read again, then scroll back. While scrolling, the panel lets touches pass through **and stops watching for outside taps**; otherwise Messenger's swipe would count as "tapped outside" and close the panel (fixed in 1.1.1). Screens are joined by removing the overlap. |
+| Personas & people | [data/Persona.kt](app/src/main/java/com/replymate/data/Persona.kt), [data/ContactProfile.kt](app/src/main/java/com/replymate/data/ContactProfile.kt), [ui/PeopleScreen.kt](app/src/main/java/com/replymate/ui/PeopleScreen.kt) | Personas and contacts are stored as JSON in DataStore. The pre-1.2 single persona is migrated automatically. Contacts are keyed by their normalised chat title. The prompt uses the chosen persona's sections and adds "NOTE ABOUT THEM" (redacted). |
+| Tweaks | [ai/ReplyOptions.kt](app/src/main/java/com/replymate/ai/ReplyOptions.kt) (`TweakKind`) | The prompt sends the draft (redacted) with "Rewrite this draft to be …, give 3 variations". The tweak decides the length. |
 | Reply styles | [ai/ReplyOptions.kt](app/src/main/java/com/replymate/ai/ReplyOptions.kt) | Mood (up to 2) / Length / Vibe. The prompt swaps the casual/warm/short rule for the requested style; the length choice replaces the "max 3 sentences" rule; the persona sections are unchanged. |
 | Readers | [reader/](app/src/main/java/com/replymate/reader/) | Work on a frozen `ScreenNode` copy of the screen, so they're unit-testable. **WhatsApp:** `message_text` IDs; delivery ticks (`status`) mean ME, otherwise position. **Messenger:** parses the "Name, message, double tap to see…" accessibility text; the name decides the sender; quotes, headers and receipts are dropped; position is the fallback. |
 | AI | [ai/](app/src/main/java/com/replymate/ai/) | Redactor, PromptBuilder (spec 8.2/8.3), GeminiClient (REST, see below), ResponseParser, ReplySuggester (logs to Debug, masks the key). |
@@ -172,6 +187,7 @@ The default model `gemini-3.5-flash-lite` can be changed on the Persona tab with
 | M7 | Suggestion panel + insert | ✅ |
 | M8 | Polish: running/battery check, hard-rule tests, this guide | ✅ |
 | 1.1 | Reply styles (mood / length / vibe) + 2–3 screens of chat history | ✅ |
+| 1.2 | Switchable personas, People tab (note / persona / style per contact), quick tweaks | ✅ |
 
 ### v1 acceptance checklist (spec section 14)
 | Item | How it's covered |
@@ -188,7 +204,6 @@ The default model `gemini-3.5-flash-lite` can be changed on the Persona tab with
 | Unit tests pass in CI | GitHub Actions |
 
 ### Roadmap (not built yet)
-- **v1.1:** per-contact notes; custom tones; "shorter / funnier" buttons.
 - **v1.2:** learn from the suggestions you pick.
 - **v1.3:** group chats; replying to a specific message; summarising even longer histories (2–3 screens is done).
 - **v2:** more apps; OCR fallback; on-device model.

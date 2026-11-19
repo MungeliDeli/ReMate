@@ -54,6 +54,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.sp
 import com.replymate.data.AppSettings
+import com.replymate.data.Persona
+import com.replymate.data.newPersonaId
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.replymate.data.ReplyLanguage
 import com.replymate.data.SettingsRepository
 import com.replymate.data.countExampleLines
@@ -105,17 +109,24 @@ fun PersonaScreen(repo: SettingsRepository, appScope: CoroutineScope, suggester:
         s = s,
         isSaved = s == saved,
         onChange = { draft = it },
-        testSection = { TestSection(s, suggester) },
+        suggester = suggester,
     )
 }
+
+/** Replaces the persona with the same id. */
+private fun AppSettings.withPersona(p: Persona) = copy(personas = personas.map { if (it.id == p.id) p else it })
 
 @Composable
 private fun PersonaForm(
     s: AppSettings,
     isSaved: Boolean,
     onChange: (AppSettings) -> Unit,
-    testSection: @Composable () -> Unit,
+    suggester: ReplySuggester,
 ) {
+    // Which persona the fields below edit (the default one at first).
+    var editingId by rememberSaveable { mutableStateOf(s.defaultPersonaId) }
+    val p = s.personas.firstOrNull { it.id == editingId } ?: s.defaultPersona
+    fun onPersona(updated: Persona) = onChange(s.withPersona(updated))
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -129,7 +140,7 @@ private fun PersonaForm(
             )
         }
         Text(
-            "Tell ReplyMate how you write. The example messages matter most.",
+            "Tell ReplyMate how you write. Keep several personas and pick one per chat. The example messages matter most.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -143,31 +154,48 @@ private fun PersonaForm(
             modifier = Modifier.fillMaxWidth(),
         )
 
+        PersonaSwitcher(
+            s = s,
+            editing = p,
+            onEdit = { editingId = it },
+            onChange = onChange,
+        )
+
         OutlinedTextField(
-            value = s.aboutMe,
-            onValueChange = { onChange(s.copy(aboutMe = it.take(Config.ABOUT_ME_MAX_CHARS))) },
+            value = p.label,
+            onValueChange = { onPersona(p.copy(label = it.take(30))) },
+            label = { Text("Persona name") },
+            placeholder = { Text("e.g. Calm Closer") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        OutlinedTextField(
+            value = p.aboutMe,
+            onValueChange = { onPersona(p.copy(aboutMe = it.take(Config.ABOUT_ME_MAX_CHARS))) },
             label = { Text("About me") },
             placeholder = { Text("Age range, vibe, interests…") },
-            supportingText = { Text("${s.aboutMe.length} / ${Config.ABOUT_ME_MAX_CHARS}") },
+            supportingText = { Text("${p.aboutMe.length} / ${Config.ABOUT_ME_MAX_CHARS}") },
             minLines = 2,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             modifier = Modifier.fillMaxWidth(),
         )
 
         OutlinedTextField(
-            value = s.writingStyle,
-            onValueChange = { onChange(s.copy(writingStyle = it)) },
+            value = p.writingStyle,
+            onValueChange = { onPersona(p.copy(writingStyle = it)) },
             label = { Text("Writing style") },
             placeholder = { Text("e.g. short messages, lowercase, light slang, occasional emoji, mix English with Bemba/Nyanja") },
             minLines = 2,
             modifier = Modifier.fillMaxWidth(),
         )
 
-        val lines = countExampleLines(s.examples)
+        val lines = countExampleLines(p.examples)
         val tooMany = lines > Config.MAX_EXAMPLE_LINES
         OutlinedTextField(
-            value = s.examples,
-            onValueChange = { onChange(s.copy(examples = it)) },
+            value = p.examples,
+            onValueChange = { onPersona(p.copy(examples = it)) },
             label = { Text("Example messages (one per line)") },
             placeholder = { Text("Paste ${Config.RECOMMENDED_EXAMPLES} messages you've really sent, one per line") },
             supportingText = {
@@ -182,15 +210,18 @@ private fun PersonaForm(
         )
 
         OutlinedTextField(
-            value = s.avoid,
-            onValueChange = { onChange(s.copy(avoid = it)) },
+            value = p.avoid,
+            onValueChange = { onPersona(p.copy(avoid = it)) },
             label = { Text("Things to avoid") },
             placeholder = { Text("e.g. no formal greetings, never use the word dear") },
             minLines = 2,
             modifier = Modifier.fillMaxWidth(),
         )
 
-        ReplyLanguagePicker(selected = s.replyLanguage, onSelect = { onChange(s.copy(replyLanguage = it)) })
+        ReplyLanguagePicker(selected = p.replyLanguage, onSelect = { onPersona(p.copy(replyLanguage = it)) })
+
+        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        Text("For all personas", style = MaterialTheme.typography.titleMedium)
 
         ContextScreensPicker(selected = s.contextScreens, onSelect = { onChange(s.copy(contextScreens = it)) })
 
@@ -240,7 +271,7 @@ private fun PersonaForm(
         }
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
-        testSection()
+        TestSection(s, p, suggester)
     }
 }
 
@@ -256,7 +287,7 @@ private sealed interface TestState {
  * (even unsaved) persona and shows the 3 results. Verifies key + persona.
  */
 @Composable
-private fun TestSection(s: AppSettings, suggester: ReplySuggester) {
+private fun TestSection(s: AppSettings, persona: Persona, suggester: ReplySuggester) {
     val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf<TestState>(TestState.Idle) }
 
@@ -272,7 +303,12 @@ private fun TestSection(s: AppSettings, suggester: ReplySuggester) {
             }
         }
     }
-    if (s.exampleList.isEmpty()) {
+    Text(
+        "Uses the persona you're editing: ${persona.label}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    if (persona.exampleList.isEmpty()) {
         Text(
             "Add example messages for better replies.",
             style = MaterialTheme.typography.bodySmall,
@@ -284,7 +320,7 @@ private fun TestSection(s: AppSettings, suggester: ReplySuggester) {
         onClick = {
             state = TestState.Loading
             scope.launch {
-                state = when (val r = suggester.suggest(s, SampleChat.conversation, label = "Persona test")) {
+                state = when (val r = suggester.suggest(s, SampleChat.conversation, label = "Persona test", persona = persona)) {
                     is GeminiResult.Success -> TestState.Done(r.suggestions, r.latencyMs)
                     is GeminiResult.Failure -> TestState.Failed(r.error.userMessage)
                 }
@@ -321,6 +357,79 @@ private fun SuggestionCard(sug: Suggestion) {
             }
             Text(sug.text, fontSize = 15.sp, lineHeight = 20.sp)
         }
+    }
+}
+
+/**
+ * Pick which persona to edit, add / duplicate / delete personas and choose
+ * the default (used unless a person or the panel picks another).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PersonaSwitcher(
+    s: AppSettings,
+    editing: Persona,
+    onEdit: (String) -> Unit,
+    onChange: (AppSettings) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    val isDefault = editing.id == s.defaultPersonaId
+    fun label(p: Persona) = p.label.ifBlank { "Untitled" } + if (p.id == s.defaultPersonaId) "  (default)" else ""
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Personas (${s.personas.size})", style = MaterialTheme.typography.titleSmall)
+            ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+                OutlinedTextField(
+                    value = label(editing),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Editing") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+                )
+                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    s.personas.forEach { p ->
+                        DropdownMenuItem(text = { Text(label(p)) }, onClick = { onEdit(p.id); expanded = false })
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = {
+                    val p = Persona(id = newPersonaId(), label = "New persona")
+                    onChange(s.copy(personas = s.personas + p))
+                    onEdit(p.id)
+                }) { Text("New") }
+                TextButton(onClick = {
+                    val p = editing.copy(id = newPersonaId(), label = (editing.label + " copy").take(30))
+                    onChange(s.copy(personas = s.personas + p))
+                    onEdit(p.id)
+                }) { Text("Duplicate") }
+                TextButton(enabled = !isDefault, onClick = { onChange(s.copy(defaultPersonaId = editing.id)) }) {
+                    Text(if (isDefault) "Default ✓" else "Make default")
+                }
+                TextButton(enabled = s.personas.size > 1, onClick = { confirmDelete = true }) { Text("Delete") }
+            }
+        }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete \"${editing.label}\"?") },
+            text = { Text("People set to this persona will use your default persona instead.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val rest = s.personas.filter { it.id != editing.id }
+                    val newDefault = if (isDefault) rest.first().id else s.defaultPersonaId
+                    onChange(s.copy(personas = rest, defaultPersonaId = newDefault))
+                    onEdit(newDefault)
+                    confirmDelete = false
+                }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
+        )
     }
 }
 

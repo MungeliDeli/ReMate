@@ -4,6 +4,7 @@ import com.replymate.ai.GeminiError
 import com.replymate.ai.GeminiResult
 import com.replymate.ai.ReplyOptions
 import com.replymate.ai.Suggestion
+import com.replymate.ai.TweakKind
 
 /** What the button under an error message does. */
 enum class PanelAction(val label: String) {
@@ -11,10 +12,25 @@ enum class PanelAction(val label: String) {
     OPEN_SETTINGS("Open settings"),
 }
 
+/** Everything the style picker shows and returns. */
+data class PanelSetup(
+    val options: ReplyOptions = ReplyOptions(),
+    /** (id, label) of every persona; chips shown when there is more than one. */
+    val personas: List<Pair<String, String>> = emptyList(),
+    val personaId: String = "",
+    /** Chat title, if it could be read; enables the note and "Remember for". */
+    val contactName: String? = null,
+    val note: String? = null,
+    /** "Remember for <name>": store persona + style for this contact. */
+    val remember: Boolean = false,
+) {
+    val contactFirstName: String? get() = contactName?.trim()?.split(Regex("\\s+"))?.firstOrNull()?.takeIf { it.isNotEmpty() }
+}
+
 /** The panel states: the four from spec F5 plus style options and chat reading. */
 sealed interface PanelState {
-    /** Style picker shown first: mood / length / vibe, then "Suggest". */
-    data class Options(val options: ReplyOptions) : PanelState
+    /** Style picker shown first: persona / mood / length / vibe, then "Suggest". */
+    data class Options(val setup: PanelSetup) : PanelState
 
     /** Scrolling up and reading more of the chat. */
     data class Reading(val screens: Int) : PanelState
@@ -45,12 +61,18 @@ sealed interface PanelState {
             personaHasExamples: Boolean,
             options: ReplyOptions = ReplyOptions(),
             messageCount: Int? = null,
+            personaLabel: String? = null,
+            noteUsed: Boolean = false,
+            tweak: TweakKind? = null,
         ): PanelState = when (result) {
             is GeminiResult.Success -> Results(
                 result.suggestions,
                 hint = if (personaHasExamples) null else EMPTY_PERSONA_HINT,
                 summary = listOfNotNull(
+                    tweak?.let { "${it.label} versions" },
+                    personaLabel,
                     options.summary().takeIf { !options.isAuto },
+                    "note used".takeIf { noteUsed },
                     messageCount?.let { "$it messages read" },
                 ).joinToString(" · ").ifEmpty { null },
             )

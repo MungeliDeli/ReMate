@@ -1,6 +1,7 @@
 package com.replymate.ai
 
 import com.replymate.data.AppSettings
+import com.replymate.data.Persona
 import com.replymate.reader.ChatMessage
 import com.replymate.reader.Conversation
 import com.replymate.reader.Sender
@@ -40,7 +41,7 @@ class ReplyOptionsTest {
 }
 
 class PromptOptionsTest {
-    private val settings = AppSettings(displayName = "Sam", examples = "ok\nlol")
+    private val settings = AppSettings(displayName = "Sam", personas = listOf(Persona(examples = "ok\nlol")))
     private val chat = Conversation(SupportedApp.WHATSAPP, null, listOf(ChatMessage(Sender.THEM, "hey you")))
 
     @Test

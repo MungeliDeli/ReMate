@@ -17,7 +17,13 @@ import com.replymate.BuildConfig
 import com.replymate.Config
 import com.replymate.MainActivity
 import com.replymate.ReplyMateApplication
-import com.replymate.ai.ReplyOptions
+import com.replymate.ai.Tweak
+import com.replymate.ai.TweakKind
+import com.replymate.data.AppSettings
+import com.replymate.data.ContactProfile
+import com.replymate.data.ContactProfiles
+import com.replymate.data.contactKey
+import com.replymate.overlay.PanelSetup
 import com.replymate.ai.Suggestion
 import com.replymate.reader.ChatHistory
 import kotlinx.coroutines.NonCancellable
@@ -66,8 +72,10 @@ class ReplyMateAccessibilityService : AccessibilityService() {
 
     /** The chat being answered; memory only, dropped when the panel closes (spec section 9). */
     private var panelConversation: Conversation? = null
-    /** Style picked in the panel for this reply. */
-    private var panelOptions = ReplyOptions()
+    /** Persona, style, contact and "remember" choices for this panel. */
+    private var panelSetup = PanelSetup()
+    /** The owner's saved setup for the open chat, if any. */
+    private var panelContact: ContactProfile? = null
     private val scroller by lazy { ChatScroller(this) }
     /** One history read (scroll up, read, scroll back) at a time. */
     private val scrollMutex = Mutex()
@@ -300,13 +308,35 @@ class ReplyMateAccessibilityService : AccessibilityService() {
             toast("Couldn't open ReplyMate panel")
             return
         }
-        // Style picker first; the last choice is pre-selected.
-        controller.renderPanel(PanelState.Options(panelOptions))
+        // Style picker first, pre-filled from this contact's profile or the last choice.
+        panelSetup = PanelSetup()
+        panelContact = null
+        controller.renderPanel(PanelState.Options(panelSetup))
         scope?.launch {
+            val settings = app.settings.settings.first()
+            val contacts = app.settings.contacts.first()
             val last = app.settings.replyOptions.first()
-            panelOptions = last
-            if (overlay?.isPanelOpen == true) overlay?.renderPanel(PanelState.Options(last))
+            val name = currentContactName()
+            val profile = name?.let { contacts[contactKey(it)] }
+            panelContact = profile
+            panelSetup = PanelSetup(
+                options = profile?.options ?: last,
+                personas = settings.personas.map { it.id to it.label },
+                personaId = settings.persona(profile?.personaId).id,
+                contactName = name,
+                note = profile?.note,
+                remember = profile?.options != null || profile?.personaId != null,
+            )
+            if (overlay?.isPanelOpen == true) overlay?.renderPanel(PanelState.Options(panelSetup))
         }
+    }
+
+    /** Chat title from the visible screen only (no scrolling, not logged). */
+    private fun currentContactName(): String? {
+        val app = currentApp ?: return null
+        val screen = overlay?.screenSize() ?: return null
+        val snap = snapshotChatWindow() ?: return null
+        return readSnapshot(app, snap, screen.x, screen.y)?.contactName?.trim()?.takeIf { it.isNotEmpty() }
     }
 
     /**
@@ -330,14 +360,46 @@ class ReplyMateAccessibilityService : AccessibilityService() {
                 return@launch
             }
             panelConversation = conversation
-            controller.renderPanel(PanelState.Loading)
-            val options = panelOptions
-            val result = app.suggester.suggest(settings, conversation, label = "Chat", options = options)
-            if (overlay?.isPanelOpen == true) {
-                overlay?.renderPanel(
-                    PanelState.fromResult(result, settings.exampleList.isNotEmpty(), options, conversation.messages.size),
-                )
-            }
+            requestSuggestions(settings, conversation, tweak = null)
+        }
+    }
+
+    /** Rewrites one suggestion ("Shorter", "Funnier", …) into 3 new variations. */
+    private fun startTweak(suggestion: Suggestion, kind: TweakKind) {
+        val conversation = panelConversation ?: return
+        requestJob?.cancel()
+        requestJob = scope?.launch {
+            val settings = app.settings.settings.first()
+            requestSuggestions(settings, conversation, Tweak(suggestion.text, kind))
+        }
+    }
+
+    private suspend fun requestSuggestions(settings: AppSettings, conversation: Conversation, tweak: Tweak?) {
+        overlay?.renderPanel(PanelState.Loading)
+        val setup = panelSetup
+        val persona = settings.persona(setup.personaId)
+        val note = panelContact?.note?.takeIf { it.isNotBlank() }
+        val result = app.suggester.suggest(
+            settings,
+            conversation,
+            label = if (tweak != null) "Tweak" else "Chat",
+            options = setup.options,
+            persona = persona,
+            contactNote = note,
+            tweak = tweak,
+        )
+        if (overlay?.isPanelOpen == true) {
+            overlay?.renderPanel(
+                PanelState.fromResult(
+                    result,
+                    personaHasExamples = persona.exampleList.isNotEmpty(),
+                    options = setup.options,
+                    messageCount = conversation.messages.size,
+                    personaLabel = persona.label.takeIf { settings.personas.size > 1 },
+                    noteUsed = note != null,
+                    tweak = tweak?.kind,
+                ),
+            )
         }
     }
 
@@ -468,24 +530,41 @@ class ReplyMateAccessibilityService : AccessibilityService() {
         overlay?.closePanel()
     }
 
-    private fun openApp(tab: String) {
+    private fun openApp(tab: String, contactName: String? = null) {
         closePanel("opened ReplyMate app")
         val intent = Intent(this, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             .putExtra(MainActivity.EXTRA_OPEN_TAB, tab)
+        if (contactName != null) intent.putExtra(MainActivity.EXTRA_CONTACT_NAME, contactName)
         runCatching { startActivity(intent) }.onFailure { DebugLog.error("Open app", it) }
     }
 
     private val panelCallbacks = object : SuggestionPanelView.Callbacks {
-        override fun onSuggest(options: ReplyOptions) {
-            panelOptions = options
-            app.appScope.launch { app.settings.saveReplyOptions(options) }
+        override fun onSuggest(setup: PanelSetup) {
+            panelSetup = setup
+            val name = setup.contactName
+            val existing = panelContact
+            app.appScope.launch {
+                app.settings.saveReplyOptions(setup.options)
+                if (name != null) {
+                    // "Remember for <name>": store or clear this contact's persona + style (note kept).
+                    val updated = ContactProfiles.applyRemember(existing, name, setup.remember, setup.personaId, setup.options)
+                    when {
+                        updated != null && updated != existing -> app.settings.saveContact(updated)
+                        updated == null && existing != null -> app.settings.deleteContact(existing.key)
+                    }
+                }
+            }
             startSuggestionFlow(reread = true)
         }
 
         override fun onShowOptions() {
-            overlay?.renderPanel(PanelState.Options(panelOptions))
+            overlay?.renderPanel(PanelState.Options(panelSetup))
         }
+
+        override fun onEditContact() = openApp(MainActivity.TAB_PEOPLE, panelSetup.contactName)
+
+        override fun onTweak(suggestion: Suggestion, kind: TweakKind) = startTweak(suggestion, kind)
 
         override fun onPick(suggestion: Suggestion) = insertSuggestion(suggestion)
 

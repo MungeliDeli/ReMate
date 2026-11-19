@@ -1,6 +1,7 @@
 package com.replymate.ai
 
 import com.replymate.data.AppSettings
+import com.replymate.data.Persona
 import com.replymate.data.ReplyLanguage
 import com.replymate.reader.Conversation
 import com.replymate.reader.Sender
@@ -21,7 +22,19 @@ object PromptBuilder {
 
     val TONES = listOf("casual", "warm", "short")
 
-    fun build(settings: AppSettings, conversation: Conversation, options: ReplyOptions = ReplyOptions()): Prompt {
+    /**
+     * [persona] is the writing style for this reply (the default unless the
+     * owner picked another or set one for this contact). [contactNote] is the
+     * owner's note about the other person. [tweak] rewrites one draft reply.
+     */
+    fun build(
+        settings: AppSettings,
+        conversation: Conversation,
+        options: ReplyOptions = ReplyOptions(),
+        persona: Persona = settings.defaultPersona,
+        contactNote: String? = null,
+        tweak: Tweak? = null,
+    ): Prompt {
         val name = settings.displayName.trim().ifEmpty { "the user" }
         val app = when (conversation.app) {
             SupportedApp.WHATSAPP -> "WhatsApp"
@@ -31,20 +44,23 @@ object PromptBuilder {
 
         val system = buildString {
             append("You help $name reply to messages on $app. Write exactly as $name would write.\n")
-            section("ABOUT $name", settings.aboutMe)
-            section("HOW $name WRITES", settings.writingStyle)
-            section("THINGS $name AVOIDS", settings.avoid)
-            val examples = settings.exampleList
+            section("ABOUT $name", persona.aboutMe)
+            section("HOW $name WRITES", persona.writingStyle)
+            section("THINGS $name AVOIDS", persona.avoid)
+            val examples = persona.exampleList
             if (examples.isNotEmpty()) {
                 append("\nREAL EXAMPLES OF $name'S MESSAGES (copy this voice, length, spelling and emoji habits):\n")
                 examples.forEach { append("- ").append(it).append('\n') }
             }
+            contactNote?.let { section("$name'S NOTE ABOUT ${other.uppercase()} (use it to pick the right tone; don't quote it)", Redactor.redact(it)) }
             append("\nRULES:\n")
-            if (options.isAuto) {
+            if (options.isAuto && tweak == null) {
                 append("- Give exactly 3 different reply options with these tones: ")
                 append(TONES.joinToString(", ") { "\"$it\"" }).append(".\n")
             } else {
-                append("- Give exactly 3 different reply options. For this reply, the owner asked for:\n")
+                append("- Give exactly 3 different reply options.")
+                if (!options.isAuto) append(" For this reply, the owner asked for:")
+                append('\n')
                 if (options.moods.isNotEmpty()) {
                     append("  - Mood: ").append(options.moods.joinToString(" and ") { it.instruction }).append('\n')
                 }
@@ -56,12 +72,14 @@ object PromptBuilder {
             }
             append("- Reply to the latest message(s) from $other, using the earlier context.\n")
             val length = options.length
-            if (length == null) {
+            if (tweak != null) {
+                append("- Length: as the rewrite request below says (it overrides other length or tone rules).\n")
+            } else if (length == null) {
                 append("- Match $name's typical message length. Never write more than 3 sentences.\n")
             } else {
                 append("- Length: ${length.instruction}.\n")
             }
-            append("- Language: ${languageRule(settings.replyLanguage)}\n")
+            append("- Language: ${languageRule(persona.replyLanguage)}\n")
             append("- Never invent facts, plans, promises or personal details that are not in the chat or the profile.\n")
             append("- Placeholders like [PHONE], [EMAIL], [LINK], [NUMBER] are redacted data; do not repeat them.\n")
             append("- Output only JSON matching the schema.")
@@ -77,9 +95,14 @@ object PromptBuilder {
                 }
                 append(who).append(": ").append(Redactor.redact(m.text).replace('\n', ' ')).append('\n')
             }
-            append("\nWrite 3 replies for Me to send next.")
-            if (conversation.messages.lastOrNull()?.sender == Sender.ME) {
-                append(" Me sent the last message; suggest natural follow-ups.")
+            if (tweak != null) {
+                append("\nDraft reply for Me: \"").append(Redactor.redact(tweak.draft).replace('\n', ' ')).append("\"\n")
+                append("Rewrite this draft to be ${tweak.kind.instruction}. Keep its meaning. Give 3 variations.")
+            } else {
+                append("\nWrite 3 replies for Me to send next.")
+                if (conversation.messages.lastOrNull()?.sender == Sender.ME) {
+                    append(" Me sent the last message; suggest natural follow-ups.")
+                }
             }
         }
         return Prompt(system, user)

@@ -24,6 +24,7 @@ import com.replymate.ai.Mood
 import com.replymate.ai.ReplyLength
 import com.replymate.ai.ReplyOptions
 import com.replymate.ai.Suggestion
+import com.replymate.ai.TweakKind
 import com.replymate.ai.Vibe
 import android.view.ViewGroup
 
@@ -38,8 +39,10 @@ class SuggestionPanelView(
 ) : FrameLayout(context) {
 
     interface Callbacks {
-        fun onSuggest(options: ReplyOptions)
+        fun onSuggest(setup: PanelSetup)
         fun onShowOptions()
+        fun onEditContact()
+        fun onTweak(suggestion: Suggestion, kind: TweakKind)
         fun onPick(suggestion: Suggestion)
         fun onCopy(suggestion: Suggestion)
         fun onRegenerate()
@@ -144,7 +147,7 @@ class SuggestionPanelView(
         regenerateButton.alpha = if (regenerateButton.isEnabled) 1f else 0.4f
         when (state) {
             is PanelState.Options -> {
-                selection = state.options
+                setup = state.setup
                 renderOptions()
             }
             is PanelState.Reading -> renderLoading(
@@ -152,10 +155,9 @@ class SuggestionPanelView(
             )
             PanelState.Loading -> renderLoading("Thinking…")
             is PanelState.Results -> {
-                state.summary?.let { content.addView(caption(it)) }
-                state.hint?.let { content.addView(caption(it)) }
-                state.suggestions.forEachIndexed { i, s -> content.addView(suggestionCard(s), cardParams(i)) }
-                content.addView(textButton("Change style") { callbacks.onShowOptions() })
+                tweakOpenFor = -1
+                results = state
+                redrawResults()
             }
             is PanelState.Error -> {
                 content.addView(message(state.message, color(R.color.panel_error)))
@@ -171,16 +173,46 @@ class SuggestionPanelView(
 
     // ------------------------------------------------------------ style options
 
-    private var selection = ReplyOptions()
+    private var setup = PanelSetup()
+    private val selection: ReplyOptions get() = setup.options
 
     private fun renderOptions() {
         content.removeAllViews()
+
+        // Who this reply is for, and the owner's note about them.
+        setup.contactName?.let { name ->
+            content.addView(caption("Chat with $name"))
+            val note = setup.note?.takeIf { it.isNotBlank() }
+            content.addView(TextView(context).apply {
+                text = if (note != null) "Note: $note" else "No note for ${setup.contactFirstName ?: name} yet"
+                setTextColor(if (note != null) textColor else textSecondary)
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
+                maxLines = 2
+                ellipsize = TextUtils.TruncateAt.END
+                setPadding(dp(2), 0, dp(2), 0)
+            })
+            content.addView(textButton(if (note != null) "Edit note" else "Add a note") { callbacks.onEditContact() })
+        }
+
+        if (setup.personas.size > 1) {
+            content.addView(sectionLabel("Persona"))
+            content.addView(chipRow(setup.personas.map { (id, label) ->
+                Triple(label, setup.personaId == id) { setup = setup.copy(personaId = id) }
+            }))
+        }
         content.addView(sectionLabel("Mood (up to ${ReplyOptions.MAX_MOODS})"))
-        content.addView(chipRow(Mood.entries.map { m -> Triple(m.label, m in selection.moods) { selection = selection.toggle(m) } }))
+        content.addView(chipRow(Mood.entries.map { m -> Triple(m.label, m in selection.moods) { setup = setup.copy(options = selection.toggle(m)) } }))
         content.addView(sectionLabel("Length"))
-        content.addView(chipRow(ReplyLength.entries.map { l -> Triple(l.label, selection.length == l) { selection = selection.toggle(l) } }))
+        content.addView(chipRow(ReplyLength.entries.map { l -> Triple(l.label, selection.length == l) { setup = setup.copy(options = selection.toggle(l)) } }))
         content.addView(sectionLabel("Vibe"))
-        content.addView(chipRow(Vibe.entries.map { v -> Triple(v.label, selection.vibe == v) { selection = selection.toggle(v) } }))
+        content.addView(chipRow(Vibe.entries.map { v -> Triple(v.label, selection.vibe == v) { setup = setup.copy(options = selection.toggle(v)) } }))
+
+        setup.contactFirstName?.let { first ->
+            content.addView(View(context), LinearLayout.LayoutParams(1, dp(8)))
+            content.addView(chipRow(listOf(
+                Triple("Remember for $first", setup.remember) { setup = setup.copy(remember = !setup.remember) },
+            )))
+        }
 
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -199,11 +231,11 @@ class SuggestionPanelView(
             background = RippleDrawable(ripple, rounded(primary, dp(24)), null)
             isClickable = true
             contentDescription = "Suggest replies, style ${selection.summary()}"
-            setOnClickListener { callbacks.onSuggest(selection) }
+            setOnClickListener { callbacks.onSuggest(setup) }
         }, LinearLayout.LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
         if (!selection.isAuto) {
             row.addView(textButton("Clear") {
-                selection = ReplyOptions()
+                setup = setup.copy(options = ReplyOptions())
                 renderOptions()
             })
         }
@@ -222,7 +254,7 @@ class SuggestionPanelView(
     }
 
     /** Wrapping row of toggle chips; tapping one updates [selection] and redraws. */
-    private fun chipRow(chips: List<Triple<String, Boolean, () -> Unit>>): View {
+    private fun chipRow(chips: List<Triple<String, Boolean, () -> Unit>>, redraw: Boolean = true): View {
         val flow = FlowLayout(context, dp(8))
         for ((label, selected, toggle) in chips) {
             flow.addView(TextView(context).apply {
@@ -242,7 +274,7 @@ class SuggestionPanelView(
                 contentDescription = "$label${if (selected) ", selected" else ""}"
                 setOnClickListener {
                     toggle()
-                    renderOptions()
+                    if (redraw) renderOptions()
                 }
             })
         }
@@ -264,18 +296,26 @@ class SuggestionPanelView(
         }
     }
 
-    private fun suggestionCard(s: Suggestion): View = LinearLayout(context).apply {
+    /** Results currently shown, and which card has its tweak row open (-1 = none). */
+    private var results: PanelState.Results? = null
+    private var tweakOpenFor = -1
+
+    private fun suggestionCard(s: Suggestion, index: Int): View = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         val shape = rounded(color(R.color.panel_card), dp(12)).apply { setStroke(dp(1), color(R.color.panel_outline)) }
         background = RippleDrawable(ripple, shape, null)
-        setPadding(dp(12), dp(12), dp(12), dp(12))
+        setPadding(dp(12), dp(12), dp(12), dp(4))
         isClickable = true
         isLongClickable = true
         contentDescription = "${s.tone} suggestion: ${s.text}. Tap to insert, long-press to copy."
         setOnClickListener { callbacks.onPick(s) }
         setOnLongClickListener { callbacks.onCopy(s); true }
 
-        addView(TextView(context).apply {
+        val top = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        top.addView(TextView(context).apply {
             text = s.tone.uppercase()
             setTextColor(primary)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
@@ -284,6 +324,12 @@ class SuggestionPanelView(
             setPadding(dp(6), dp(2), dp(6), dp(2))
             importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
         }, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
+        top.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
+        top.addView(textButton(if (tweakOpenFor == index) "Tweak ▴" else "Tweak ▾") {
+            tweakOpenFor = if (tweakOpenFor == index) -1 else index
+            redrawResults()
+        }.apply { contentDescription = "Tweak this suggestion" })
+        addView(top, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
 
         addView(TextView(context).apply {
             text = s.text
@@ -295,7 +341,21 @@ class SuggestionPanelView(
             maxLines = 6
             ellipsize = TextUtils.TruncateAt.END
             importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
-        }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
+        }, LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8) })
+
+        if (tweakOpenFor == index) {
+            addView(chipRow(TweakKind.entries.map { k -> Triple(k.label, false) { callbacks.onTweak(s, k) } }, redraw = false),
+                LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(8) })
+        }
+    }
+
+    private fun redrawResults() {
+        val r = results ?: return
+        content.removeAllViews()
+        r.summary?.let { content.addView(caption(it)) }
+        r.hint?.let { content.addView(caption(it)) }
+        r.suggestions.forEachIndexed { i, s -> content.addView(suggestionCard(s, i), cardParams(i)) }
+        content.addView(textButton("Change style") { callbacks.onShowOptions() })
     }
 
     private fun cardParams(index: Int) =

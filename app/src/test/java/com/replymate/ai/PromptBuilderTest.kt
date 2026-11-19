@@ -1,6 +1,7 @@
 package com.replymate.ai
 
 import com.replymate.data.AppSettings
+import com.replymate.data.Persona
 import com.replymate.data.ReplyLanguage
 import com.replymate.reader.ChatMessage
 import com.replymate.reader.Conversation
@@ -14,11 +15,15 @@ import org.junit.Test
 class PromptBuilderTest {
     private val full = AppSettings(
         displayName = "Sam",
-        aboutMe = "20s, student in Lusaka",
-        writingStyle = "short, lowercase, light slang",
-        examples = "lol ok\n\nsharp sharp\nsee you later",
-        avoid = "no formal greetings",
-        replyLanguage = ReplyLanguage.MATCH_CHAT,
+        personas = listOf(
+            Persona(
+                aboutMe = "20s, student in Lusaka",
+                writingStyle = "short, lowercase, light slang",
+                examples = "lol ok\n\nsharp sharp\nsee you later",
+                avoid = "no formal greetings",
+                replyLanguage = ReplyLanguage.MATCH_CHAT,
+            ),
+        ),
     )
     private val chat = Conversation(
         SupportedApp.WHATSAPP,

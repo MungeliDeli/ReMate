@@ -25,9 +25,17 @@ class PersonaTest {
     @Test
     fun personaReady_needsNameAndMinimumExamples() {
         val examples = (1..Config.MIN_EXAMPLES_FOR_READY).joinToString("\n") { "m$it" }
-        assertFalse(AppSettings(examples = examples).personaReady)
-        assertFalse(AppSettings(displayName = "Sam", examples = "just one").personaReady)
-        assertTrue(AppSettings(displayName = "Sam", examples = examples).personaReady)
+        assertFalse(AppSettings(personas = listOf(Persona(examples = examples))).personaReady)
+        assertFalse(AppSettings(displayName = "Sam", personas = listOf(Persona(examples = "just one"))).personaReady)
+        assertTrue(AppSettings(displayName = "Sam", personas = listOf(Persona(examples = examples))).personaReady)
+        // Only the DEFAULT persona counts.
+        val two = AppSettings(
+            displayName = "Sam",
+            personas = listOf(Persona(id = "a", examples = "x"), Persona(id = "b", examples = examples)),
+            defaultPersonaId = "a",
+        )
+        assertFalse(two.personaReady)
+        assertTrue(two.copy(defaultPersonaId = "b").personaReady)
     }
 
     @Test

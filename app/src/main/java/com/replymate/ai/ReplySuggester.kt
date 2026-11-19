@@ -1,6 +1,7 @@
 package com.replymate.ai
 
 import com.replymate.data.AppSettings
+import com.replymate.data.Persona
 import com.replymate.debug.DebugLog
 import com.replymate.debug.DebugType
 import com.replymate.reader.ChatMessage
@@ -20,6 +21,9 @@ class ReplySuggester(private val client: GeminiClient) {
         conversation: Conversation,
         label: String = "Chat",
         options: ReplyOptions = ReplyOptions(),
+        persona: Persona = settings.defaultPersona,
+        contactNote: String? = null,
+        tweak: Tweak? = null,
     ): GeminiResult {
         val apiKey = settings.apiKey.trim()
         if (apiKey.isEmpty()) {
@@ -27,10 +31,17 @@ class ReplySuggester(private val client: GeminiClient) {
             return GeminiResult.Failure(GeminiError.NO_KEY) // no network call (spec section 12)
         }
         val model = settings.effectiveModelId
-        val prompt = PromptBuilder.build(settings, conversation, options)
+        val prompt = PromptBuilder.build(settings, conversation, options, persona, contactNote?.takeIf { it.isNotBlank() }, tweak)
+        val what = listOfNotNull(
+            "${conversation.messages.size} messages",
+            persona.label,
+            options.summary(),
+            "note".takeIf { !contactNote.isNullOrBlank() },
+            tweak?.let { "tweak: ${it.kind.label}" },
+        ).joinToString(", ")
         DebugLog.add(
             DebugType.REQUEST,
-            "$label → $model (${conversation.messages.size} messages, ${options.summary()})",
+            "$label → $model ($what)",
             mask(prompt.describe(), apiKey),
         )
 

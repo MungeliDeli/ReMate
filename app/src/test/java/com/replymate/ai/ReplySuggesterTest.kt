@@ -1,6 +1,7 @@
 package com.replymate.ai
 
 import com.replymate.data.AppSettings
+import com.replymate.data.Persona
 import com.replymate.debug.DebugLog
 import com.replymate.debug.DebugType
 import kotlinx.coroutines.runBlocking
@@ -16,7 +17,7 @@ import org.junit.Test
 class ReplySuggesterTest {
     private lateinit var server: MockWebServer
     private val key = "AIzaFAKEKEYfortests1234567890"
-    private val settings = AppSettings(displayName = "Sam", apiKey = key, examples = "ok\nlol")
+    private val settings = AppSettings(displayName = "Sam", apiKey = key, personas = listOf(Persona(examples = "ok\nlol")))
 
     @Before
     fun setUp() {

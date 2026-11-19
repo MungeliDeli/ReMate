@@ -92,7 +92,7 @@ fun SetupScreen(repo: SettingsRepository, onOpenPersona: () -> Unit) {
             }
         }
 
-        val exampleCount = settings.exampleList.size
+        val exampleCount = settings.defaultPersona.exampleList.size
         ChecklistItem(
             done = settings.personaReady,
             title = "2. Your persona",

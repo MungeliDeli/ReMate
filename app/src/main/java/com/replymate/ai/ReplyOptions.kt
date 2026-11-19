@@ -1,9 +1,12 @@
 package com.replymate.ai
 
+import kotlinx.serialization.Serializable
+
 /**
  * Per-reply style choices picked in the panel before asking Gemini.
  * They shape this one reply; the persona (who the owner is) stays the same.
  */
+@Serializable
 enum class Mood(val label: String, val instruction: String) {
     LIGHT("Light", "light-hearted and easy-going"),
     FLIRTY("Flirty", "flirty and charming: confident, playful tension and compliments; respectful, never crude or sexual"),
@@ -12,12 +15,14 @@ enum class Mood(val label: String, val instruction: String) {
     COMFORTING("Comforting", "comforting and supportive, for when they are sad or going through something; kind, no jokes at their expense"),
 }
 
+@Serializable
 enum class ReplyLength(val label: String, val instruction: String) {
     SHORT("Short", "very short: a few words, at most one short sentence"),
     MEDIUM("Medium", "1-2 sentences"),
     LONG("Long", "3-4 sentences, still natural for a text message"),
 }
 
+@Serializable
 enum class Vibe(val label: String, val instruction: String) {
     CHILLED("Chilled", "relaxed and laid-back"),
     FUNNY("Funny", "funny, with real humour or a joke"),
@@ -25,6 +30,7 @@ enum class Vibe(val label: String, val instruction: String) {
     SERIOUS("Serious", "sincere and serious, no jokes"),
 }
 
+@Serializable
 data class ReplyOptions(
     /** Up to [MAX_MOODS], in the order picked. */
     val moods: List<Mood> = emptyList(),
@@ -57,3 +63,15 @@ data class ReplyOptions(
         const val MAX_MOODS = 2
     }
 }
+
+/** Quick tweak buttons on a suggestion card. */
+enum class TweakKind(val label: String, val instruction: String) {
+    SHORTER("Shorter", "shorter"),
+    FUNNIER("Funnier", "funnier"),
+    BOLDER("Bolder", "bolder and more confident"),
+    SOFTER("Softer", "softer and gentler"),
+    EMOJI("+ Emoji", "the same message with one or two fitting emojis"),
+}
+
+/** Rewrite [draft] (one suggestion) in the way [kind] says. */
+data class Tweak(val draft: String, val kind: TweakKind)

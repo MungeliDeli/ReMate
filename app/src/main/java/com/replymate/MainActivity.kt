@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Face
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -28,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import com.replymate.ui.DebugScreen
+import com.replymate.ui.PeopleScreen
 import com.replymate.ui.PersonaScreen
 import com.replymate.ui.SetupScreen
 import com.replymate.ui.theme.ReplyMateTheme
@@ -35,26 +37,31 @@ import com.replymate.ui.theme.ReplyMateTheme
 internal enum class Tab(val label: String, val icon: ImageVector) {
     SETUP("Setup", Icons.Outlined.CheckCircle),
     PERSONA("Persona", Icons.Outlined.Person),
+    PEOPLE("People", Icons.Outlined.Face),
     DEBUG("Debug", Icons.Outlined.Build),
 }
 
 class MainActivity : ComponentActivity() {
 
-    /** Tab requested by the overlay panel ("Open settings" / "Open debug"). */
+    /** Tab requested by the overlay panel ("Open settings" / "Open debug" / "Edit note"). */
     private val requestedTab = mutableStateOf<Tab?>(null)
+    /** Contact to edit on the People tab, from the panel's "Edit note". */
+    private val requestedContact = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         requestedTab.value = tabFrom(intent)
+        requestedContact.value = intent?.getStringExtra(EXTRA_CONTACT_NAME)
         setContent {
-            ReplyMateTheme { ReplyMateApp(requestedTab) }
+            ReplyMateTheme { ReplyMateApp(requestedTab, requestedContact) }
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         tabFrom(intent)?.let { requestedTab.value = it }
+        intent.getStringExtra(EXTRA_CONTACT_NAME)?.let { requestedContact.value = it }
     }
 
     private fun tabFrom(intent: Intent?): Tab? =
@@ -64,11 +71,13 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_OPEN_TAB = "com.replymate.OPEN_TAB"
         const val TAB_PERSONA = "PERSONA"
         const val TAB_DEBUG = "DEBUG"
+        const val TAB_PEOPLE = "PEOPLE"
+        const val EXTRA_CONTACT_NAME = "com.replymate.CONTACT_NAME"
     }
 }
 
 @Composable
-private fun ReplyMateApp(requestedTab: MutableState<Tab?>) {
+private fun ReplyMateApp(requestedTab: MutableState<Tab?>, requestedContact: MutableState<String?>) {
     val app = LocalContext.current.applicationContext as ReplyMateApplication
     var selected by rememberSaveable { mutableStateOf(requestedTab.value ?: Tab.SETUP) }
     val requested = requestedTab.value
@@ -97,6 +106,12 @@ private fun ReplyMateApp(requestedTab: MutableState<Tab?>) {
             when (selected) {
                 Tab.SETUP -> SetupScreen(app.settings, onOpenPersona = { selected = Tab.PERSONA })
                 Tab.PERSONA -> PersonaScreen(app.settings, app.appScope, app.suggester)
+                Tab.PEOPLE -> PeopleScreen(
+                    app.settings,
+                    app.appScope,
+                    requestedContact = requestedContact.value,
+                    onRequestHandled = { requestedContact.value = null },
+                )
                 Tab.DEBUG -> DebugScreen()
             }
         }
